@@ -1,24 +1,13 @@
 import click
 
-empty_char = "░"
-fill_char = "█"
+EMPTY_CHAR = "░"
+FILL_CHAR = "█"
+MAX_FILE_CHAR_LEN = 30
 
-def progressbar(length, label):
-    return click.progressbar(length=length, label=label, bar_template="%(label)s [%(bar)s] %(info)s", empty_char=empty_char, fill_char=fill_char)
+def progressbar(filesize, filename):
+    filename = (filename if len(filename) < MAX_FILE_CHAR_LEN else filename[:MAX_FILE_CHAR_LEN] + '...') + ' '*((MAX_FILE_CHAR_LEN + 4) - len(filename))
+    return click.progressbar(length=filesize, label=filename, bar_template=f"==> %(label)s [{click.style('%(bar)s', bg='blue')}] %(info)s", empty_char=EMPTY_CHAR, fill_char=FILL_CHAR)
 
-def clear_console(command):
-    
-    @click.pass_context
-    def wrapper(ctx, *args, **kwargs):
-        click.clear()
-        return ctx.invoke(command, *args, **kwargs)
-    
-    return click.Command(
-        name=command.name,
-        callback=wrapper,
-        params=command.params,
-        help=command.help,
-    )
 
 
 # primary, secondary, danger, warning, success
