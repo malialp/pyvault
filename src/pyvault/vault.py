@@ -101,15 +101,11 @@ def encrypt_vault(password):
     vault_files = [file for file in os.listdir(vault_path) if file not in config["excluded_files"]]
 
     for filename in vault_files:
-        status = encrypt_file(os.path.join(vault_path, filename), f)
+        status = encrypt_file(filename, f)
 
         if status == 'abort':
-            print("Aborted")
-            break
+            return 'abort'
         
-    if status != 'abort':
-        print("Encryption complete")
-
 
 def decrypt_vault(password):
     f = get_fernet(password)
@@ -119,10 +115,6 @@ def decrypt_vault(password):
     vault_files = [file for file in os.listdir(vault_path) if file not in config["excluded_files"]]
 
     for filename in vault_files:
-        status = decrypt_file(os.path.join(vault_path, filename), f)
+        status = decrypt_file(filename, f)
         if status == 'abort':
-            print("Aborted")
-            break
-        
-    if status != 'abort':
-        print("Decryption complete")
+            return 'abort'
