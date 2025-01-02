@@ -11,22 +11,22 @@ from .utils import progressbar
 # Constants
 ENCRYPT_CHUNK_SIZE = 524288
 DECRYPT_CHUNK_SIZE = 699148
-MAX_FILE_CHAR_LEN = 30
 
 def init_vault(path):
     base_path = os.path.abspath(path)
     os.makedirs(base_path, exist_ok=True)
 
-    config = config = {
-                "vault_path": base_path,
-                "salt": os.urandom(16).hex(),
-                "excluded_files": [
-                    "config.json",
-                ],
-            }
+    config = {
+        "vault_path": base_path,
+        "salt": os.urandom(16).hex(),
+        "vault_lock_status": False,
+        "excluded_files": [
+            "config.json",
+        ],
+    }
 
-    with open(os.path.join(base_path, "config.json"), "w") as f:
-        f.write(json.dumps(config, indent=4))
+    config_path = os.path.join(base_path, "config.json")
+    set_config(config, config_path)
     
     return config
 
@@ -34,9 +34,16 @@ def init_vault(path):
 def get_config():
     with open("config.json") as f:
         config = json.load(f)
-        config["salt"] = bytes.fromhex(config["salt"])
         return config
 
+def set_config(config, path):
+    if os.path.exists(path):
+        os.chmod(path, 0o666)
+    
+    with open(path, "w") as f:
+        json.dump(config, f, indent=4)
+    
+    os.chmod(path, 0o444)
 
 def get_fernet(password):
     config = get_config()
@@ -44,7 +51,7 @@ def get_fernet(password):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=config["salt"],
+        salt=bytes.fromhex(config["salt"]),
         iterations=480000,
         )
     
@@ -94,27 +101,47 @@ def decrypt_file(filename, f):
 
 
 def encrypt_vault(password):
-    f = get_fernet(password)
-    
     config = get_config()
+
+    if config["vault_lock_status"]:
+        return 'already_satisfied'
+        
     vault_path = config["vault_path"]
     vault_files = [file for file in os.listdir(vault_path) if file not in config["excluded_files"]]
+    
+    if len(vault_files) == 0:
+        return 'empty'
+
+    f = get_fernet(password)
 
     for filename in vault_files:
         status = encrypt_file(filename, f)
 
         if status == 'abort':
             return 'abort'
-        
+    
+    config["vault_lock_status"] = True
+    set_config(config, "config.json")
+
 
 def decrypt_vault(password):
-    f = get_fernet(password)
-    
     config = get_config()
+    
+    if not config["vault_lock_status"]:
+        return 'already_satisfied'
+
     vault_path = config["vault_path"]
     vault_files = [file for file in os.listdir(vault_path) if file not in config["excluded_files"]]
+
+    if len(vault_files) == 0:
+        return 'empty'
+
+    f = get_fernet(password)
 
     for filename in vault_files:
         status = decrypt_file(filename, f)
         if status == 'abort':
             return 'abort'
+    
+    config["vault_lock_status"] = False
+    set_config(config, "config.json")
