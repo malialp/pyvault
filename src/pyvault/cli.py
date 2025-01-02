@@ -38,6 +38,14 @@ def encrypt(key):
         click.echo(click.style("Encryption failed. Exiting...", fg='red'))    
         return
     
+    if status == 'empty':
+        click.echo(click.style("Vault is empty.", fg='yellow'))
+        return
+    
+    if status == 'already_satisfied':
+        click.echo(click.style("Vault is already encrypted.", fg='yellow'))
+        return
+    
     
     click.echo("🔒 Vault Encrypted successfully.")
     
@@ -55,6 +63,14 @@ def decrypt(key):
 
     if status == 'abort':
         click.echo(click.style("Decryption failed. Exiting...", fg='red'))    
+        return
+    
+    if status == 'empty':
+        click.echo(click.style("Vault is empty.", fg='yellow'))
+        return
+    
+    if status == 'already_satisfied':
+        click.echo(click.style("Vault is already decrypted.", fg='yellow'))
         return
     
     click.echo("🔓 Vault decrypted successfully.")
