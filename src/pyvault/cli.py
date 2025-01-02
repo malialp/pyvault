@@ -30,8 +30,16 @@ def encrypt(key):
         else:
             click.echo("Keys do not match. Exiting...")
             return
-
-    encrypt_vault(key)
+    
+    click.echo("Encrypting vault...")
+    status = encrypt_vault(key)
+    
+    if status == 'abort':
+        click.echo(click.style("Encryption failed. Exiting...", fg='red'))    
+        return
+    
+    
+    click.echo("🔒 Vault Encrypted successfully.")
     
 
 @clear_console
@@ -42,7 +50,14 @@ def decrypt(key):
     if not key:
         key = maskpass.askpass('Enter password: ', '*')
 
-    decrypt_vault(key)
+    click.echo("Decrypting vault...")
+    status = decrypt_vault(key)
+
+    if status == 'abort':
+        click.echo(click.style("Decryption failed. Exiting...", fg='red'))    
+        return
+    
+    click.echo("🔓 Vault decrypted successfully.")
 
 
 # Grouping the commands
