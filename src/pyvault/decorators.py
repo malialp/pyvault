@@ -2,8 +2,8 @@ import click
 import os
 import json
 
+
 def clear_console(command):
-    
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):
         click.clear()
@@ -16,22 +16,19 @@ def clear_console(command):
         help=command.help,
     )
 
+
 def validate_vault(command):
-    
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):
-        
-        # check if config file exists
         if not os.path.exists("config.json"):
-            click.echo("Vault not initialized. Please run 'vault init' command to initialize the vault.")
+            click.echo(click.style("Vault not initialized. Please run 'vault init' command to initialize the vault.", fg='red'))
             return
         else:
             with open("config.json") as f:
                 config = json.load(f)
-                
-                # check if salt valid
+
                 if config.get("salt") is None or config.get("salt") == "" or len(config.get("salt")) != 32:
-                    click.echo("Invalid salt found in config.json. Please reinitialize the vault.")
+                    click.echo(click.style("Invalid salt found in config.json. Please reinitialize the vault.", fg='red'))
                     return
     
         return ctx.invoke(command, *args, **kwargs)
