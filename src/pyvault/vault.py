@@ -17,6 +17,7 @@ def init_vault(path):
     os.makedirs(base_path, exist_ok=True)
 
     config = {
+        "version": "0.1.0",
         "vault_path": base_path,
         "salt": os.urandom(16).hex(),
         "vault_lock_status": False,
