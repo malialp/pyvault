@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-vault = "pyvault:cli"
+vault = "pyvault.cli:cli"
 
 [build-system]
 requires = ["hatchling"]

@@ -84,7 +84,3 @@ def cli():
 cli.add_command(encrypt)
 cli.add_command(decrypt)
 cli.add_command(init)
-
-
-if __name__ == "__main__":
-    cli()
