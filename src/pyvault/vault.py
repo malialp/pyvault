@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import os
 import base64
 import json
+import toml
 
 from .utils import progressbar
 
@@ -16,8 +17,12 @@ def init_vault(path):
     base_path = os.path.abspath(path)
     os.makedirs(base_path, exist_ok=True)
 
+    pyproject_path = os.path.join(os.path.dirname(__file__), "../../pyproject.toml")
+    pyproject_data = toml.load(pyproject_path)
+    version = pyproject_data["project"]["version"]
+
     config = {
-        "version": "0.1.0",
+        "version": version,
         "vault_path": base_path,
         "salt": os.urandom(16).hex(),
         "vault_lock_status": False,
