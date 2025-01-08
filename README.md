@@ -14,6 +14,9 @@ vault init .
 
 This will create a `config.json` file in the folder. Now you're ready to encrypt files.
 
+> [!CAUTION]
+> Do not delete the `config.json` file. It is required for decryption along with your password. Without it, decryption will be impossible.
+
 ### Commands
 
 ```bash
