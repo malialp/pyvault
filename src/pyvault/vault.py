@@ -5,24 +5,17 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import os
 import base64
 import json
-import toml
 
 from .utils import progressbar
+from .settings import ENCRYPT_CHUNK_SIZE, DECRYPT_CHUNK_SIZE, APP_VERSION
 
-# Constants
-ENCRYPT_CHUNK_SIZE = 524288
-DECRYPT_CHUNK_SIZE = 699148
 
 def init_vault(path):
     base_path = os.path.abspath(path)
     os.makedirs(base_path, exist_ok=True)
 
-    pyproject_path = os.path.join(os.path.dirname(__file__), "../../pyproject.toml")
-    pyproject_data = toml.load(pyproject_path)
-    version = pyproject_data["project"]["version"]
-
     config = {
-        "version": version,
+        "version": APP_VERSION,
         "vault_path": base_path,
         "salt": os.urandom(16).hex(),
         "vault_lock_status": False,

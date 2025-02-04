@@ -1,8 +1,6 @@
 import click
+from .settings import MAX_FILE_CHAR_LEN, EMPTY_CHAR, FILL_CHAR
 
-EMPTY_CHAR = "░"
-FILL_CHAR = "█"
-MAX_FILE_CHAR_LEN = 30
 
 def progressbar(filesize, filename):
     filename = (filename if len(filename) < MAX_FILE_CHAR_LEN else filename[:MAX_FILE_CHAR_LEN] + '...') + ' '*((MAX_FILE_CHAR_LEN + 4) - len(filename))
