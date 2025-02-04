@@ -3,7 +3,7 @@ import maskpass
 import os
 
 from .decorators import clear_console, validate_vault
-from .vault import init_vault, encrypt_vault, decrypt_vault
+from .vault import init_vault, encrypt_vault, decrypt_vault, get_config
 
 @clear_console
 @click.command
@@ -76,11 +76,20 @@ def decrypt(key):
     click.echo("🔓 Vault decrypted successfully.")
 
 
+@clear_console
+@validate_vault
+@click.command
+def status():
+    config = get_config()
+    status = config['vault_lock_status']
+    click.echo(f'{"🔓" if status == False else "🔒"} Vault is {click.style("UNLOCKED", fg="red") if status == False else click.style("LOCKED", fg="green")}')
+
 # Grouping the commands
 @click.group
 def cli():
     pass
 
+cli.add_command(init)
+cli.add_command(status)
 cli.add_command(encrypt)
 cli.add_command(decrypt)
-cli.add_command(init)
