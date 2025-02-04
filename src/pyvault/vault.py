@@ -16,7 +16,6 @@ def init_vault(path):
 
     config = {
         "version": APP_VERSION,
-        "vault_path": base_path,
         "salt": os.urandom(16).hex(),
         "vault_lock_status": False,
         "excluded_files": [
@@ -105,8 +104,7 @@ def encrypt_vault(password):
     if config["vault_lock_status"]:
         return 'already_satisfied'
         
-    vault_path = config["vault_path"]
-    vault_files = [file for file in os.listdir(vault_path) if file not in config["excluded_files"]]
+    vault_files = [file for file in os.listdir('.') if file not in config["excluded_files"]]
     
     if len(vault_files) == 0:
         return 'empty'
@@ -129,8 +127,7 @@ def decrypt_vault(password):
     if not config["vault_lock_status"]:
         return 'already_satisfied'
 
-    vault_path = config["vault_path"]
-    vault_files = [file for file in os.listdir(vault_path) if file not in config["excluded_files"]]
+    vault_files = [file for file in os.listdir('.') if file not in config["excluded_files"]]
 
     if len(vault_files) == 0:
         return 'empty'
