@@ -73,6 +73,10 @@ def decrypt(key):
         click.echo(click.style("Vault is already decrypted.", fg='yellow'))
         return
     
+    if status == 'wrong_salt':
+        click.echo(click.style("Salt values are not matching. Exiting...", fg='red'))
+        return
+    
     click.echo("🔓 Vault decrypted successfully.")
 
 

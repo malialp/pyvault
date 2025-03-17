@@ -1,6 +1,7 @@
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 
 import os
 import base64
@@ -51,18 +52,22 @@ def get_fernet(password):
         length=32,
         salt=bytes.fromhex(config["salt"]),
         iterations=480000,
+        backend=default_backend()
         )
     
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password, "utf-8")))
 
-    return Fernet(key)
+    return Fernet(key, backend=default_backend())
 
 
-def encrypt_file(filename, f):
+def encrypt_file(filename, f, salthash):
     with open(filename, 'rb') as read_file, open(filename + '.enc', 'wb') as write_file:
-        filesize = os.path.getsize(filename)
+        write_file.write(salthash)
+        filesize = os.path.getsize(filename) + 32
         
         with progressbar(filesize, filename) as bar:
+            bar.update(32)
+
             while True:
                 block = read_file.read(ENCRYPT_CHUNK_SIZE)
                 
@@ -75,13 +80,19 @@ def encrypt_file(filename, f):
 
     os.remove(filename)
 
-def decrypt_file(filename, f):
+def decrypt_file(filename, f, salthash):
     new_filename = '.'.join(filename.split('.')[:-1])
     try:
         with open(filename, 'rb') as read_file, open(new_filename, 'wb') as write_file:
             filesize = os.path.getsize(filename)
+            file_salt_hash = read_file.read(32)
+            
+            if file_salt_hash != salthash:
+                return 'wrong_salt'
             
             with progressbar(filesize, filename) as bar:
+                bar.update(32)
+
                 while True:
                     block = read_file.read(DECRYPT_CHUNK_SIZE)
                     
@@ -111,8 +122,14 @@ def encrypt_vault(password):
 
     f = get_fernet(password)
 
+    salt = bytes.fromhex(config["salt"])
+    
+    salt_hash_obj = hashes.Hash(hashes.SHA256())
+    salt_hash_obj.update(salt)
+    salt_hash = salt_hash_obj.finalize()
+
     for filename in vault_files:
-        status = encrypt_file(filename, f)
+        status = encrypt_file(filename, f, salt_hash)
 
         if status == 'abort':
             return 'abort'
@@ -134,10 +151,16 @@ def decrypt_vault(password):
 
     f = get_fernet(password)
 
+    salt = bytes.fromhex(config["salt"])
+    
+    salt_hash_obj = hashes.Hash(hashes.SHA256())
+    salt_hash_obj.update(salt)
+    salt_hash = salt_hash_obj.finalize()
+
     for filename in vault_files:
-        status = decrypt_file(filename, f)
-        if status == 'abort':
-            return 'abort'
+        status = decrypt_file(filename, f, salt_hash)
+        if status in ['abort', 'wrong_salt']:
+            return status
     
     config["vault_lock_status"] = False
     set_config(config, "config.json")
