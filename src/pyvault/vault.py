@@ -34,6 +34,7 @@ def get_config():
         config = json.load(f)
         return config
 
+
 def set_config(config, path):
     if os.path.exists(path):
         os.chmod(path, 0o666)
@@ -42,6 +43,7 @@ def set_config(config, path):
         json.dump(config, f, indent=4)
     
     os.chmod(path, 0o444)
+
 
 def get_fernet(password):
     config = get_config()
@@ -75,6 +77,7 @@ def encrypt_file(filename, f):
 
     os.remove(filename)
 
+
 def decrypt_file(filename, f):
     new_filename = '.'.join(filename.split('.')[:-1])
     try:
@@ -98,13 +101,23 @@ def decrypt_file(filename, f):
         return 'abort'
 
 
-def encrypt_vault(password):
+def get_files():
     config = get_config()
+    files = os.listdir('.')
 
-    if config["vault_lock_status"]:
-        return 'already_satisfied'
-        
-    vault_files = [file for file in os.listdir('.') if file not in config["excluded_files"]]
+    excluded_files = set(config['excluded_files'])
+    encrypted_files = {file for file in files if file.endswith('.enc')}
+    unencrypted_files = {file for file in files if not file.endswith('.enc')}
+
+    return {
+        "excluded_files": excluded_files,
+        "encrypted_files": encrypted_files - excluded_files,
+        "unencrypted_files": unencrypted_files - excluded_files,
+    }
+
+
+def encrypt_vault(password):
+    vault_files = get_files()['unencrypted_files']
     
     if len(vault_files) == 0:
         return 'empty'
@@ -116,18 +129,10 @@ def encrypt_vault(password):
 
         if status == 'abort':
             return 'abort'
-    
-    config["vault_lock_status"] = True
-    set_config(config, "config.json")
 
 
 def decrypt_vault(password):
-    config = get_config()
-    
-    if not config["vault_lock_status"]:
-        return 'already_satisfied'
-
-    vault_files = [file for file in os.listdir('.') if file not in config["excluded_files"]]
+    vault_files = get_files()['encrypted_files']
 
     if len(vault_files) == 0:
         return 'empty'
@@ -138,6 +143,3 @@ def decrypt_vault(password):
         status = decrypt_file(filename, f)
         if status == 'abort':
             return 'abort'
-    
-    config["vault_lock_status"] = False
-    set_config(config, "config.json")

@@ -39,7 +39,7 @@ def encrypt(key):
         return
     
     if status == 'empty':
-        click.echo(click.style("Vault is empty.", fg='yellow'))
+        click.echo(click.style("Vault is empty or files are already encrypted.", fg='yellow'))
         return
     
     if status == 'already_satisfied':
@@ -66,7 +66,7 @@ def decrypt(key):
         return
     
     if status == 'empty':
-        click.echo(click.style("Vault is empty.", fg='yellow'))
+        click.echo(click.style("Vault is empty or files are already decrypted", fg='yellow'))
         return
     
     if status == 'already_satisfied':
