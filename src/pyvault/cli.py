@@ -42,11 +42,6 @@ def encrypt(key):
         click.echo(click.style("Vault is empty or files are already encrypted.", fg='yellow'))
         return
     
-    if status == 'already_satisfied':
-        click.echo(click.style("Vault is already encrypted.", fg='yellow'))
-        return
-    
-    
     click.echo("🔒 Vault Encrypted successfully.")
     
 
@@ -67,10 +62,6 @@ def decrypt(key):
     
     if status == 'empty':
         click.echo(click.style("Vault is empty or files are already decrypted", fg='yellow'))
-        return
-    
-    if status == 'already_satisfied':
-        click.echo(click.style("Vault is already decrypted.", fg='yellow'))
         return
     
     if status == 'wrong_salt':
