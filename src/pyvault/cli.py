@@ -75,13 +75,6 @@ def decrypt(key):
     click.echo("\n🔓 Vault decrypted successfully.")
 
 
-@clear_console
-@validate_vault
-@click.command
-def status():
-    config = get_config()
-    status = config['vault_lock_status']
-    click.echo(f'{"🔓" if status == False else "🔒"} Vault is {click.style("UNLOCKED", fg="red") if status == False else click.style("LOCKED", fg="green")}')
 
 # Grouping the commands
 @click.group
@@ -89,6 +82,5 @@ def cli():
     pass
 
 cli.add_command(init)
-cli.add_command(status)
 cli.add_command(encrypt)
 cli.add_command(decrypt)
