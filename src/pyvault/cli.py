@@ -32,17 +32,21 @@ def encrypt(key):
             return
     
     click.echo("Encrypting vault...")
+
     status = encrypt_vault(key)
     
-    if status == 'abort':
-        click.echo(click.style("Encryption failed. Exiting...", fg='red'))    
+    click.echo(f"\n{click.style(len(status['unsuccesful_files']) + len(status['succesful_files']), fg='blue')} files processed.")
+    click.echo(f"{click.style(len(status['succesful_files']), fg='green')} files encrypted successfully.")
+    click.echo(f"{click.style(len(status['unsuccesful_files']), fg='red')} files failed.")
+
+    if len(status['unsuccesful_files']) > 0:
+        click.echo(click.style("\nEncryption failed for the following files:", fg='red'))
+        for file in status['unsuccesful_files']:
+            click.echo(f"  - {file}")
+
         return
-    
-    if status == 'empty':
-        click.echo(click.style("Vault is empty or files are already encrypted.", fg='yellow'))
-        return
-    
-    click.echo("🔒 Vault Encrypted successfully.")
+
+    click.echo("\n🔒 Vault Encrypted successfully.")
     
 
 @clear_console
@@ -54,21 +58,21 @@ def decrypt(key):
         key = maskpass.askpass('Enter password: ', '*')
 
     click.echo("Decrypting vault...")
+    
     status = decrypt_vault(key)
 
-    if status == 'abort':
-        click.echo(click.style("Decryption failed. Exiting...", fg='red'))    
+    click.echo(f"\n{click.style(len(status['unsuccesful_files']) + len(status['succesful_files']), fg='blue')} files processed.")
+    click.echo(f"{click.style(len(status['succesful_files']), fg='green')} files decrypted successfully.")
+    click.echo(f"{click.style(len(status['unsuccesful_files']), fg='red')} files failed.")
+
+    if len(status['unsuccesful_files']) > 0:
+        click.echo(click.style("\nDecryption failed for the following files:", fg='red'))
+        for file in status['unsuccesful_files']:
+            click.echo(f"  - {file}")
+
         return
     
-    if status == 'empty':
-        click.echo(click.style("Vault is empty or files are already decrypted", fg='yellow'))
-        return
-    
-    if status == 'wrong_salt':
-        click.echo(click.style("Salt values are not matching. Exiting...", fg='red'))
-        return
-    
-    click.echo("🔓 Vault decrypted successfully.")
+    click.echo("\n🔓 Vault decrypted successfully.")
 
 
 @clear_console

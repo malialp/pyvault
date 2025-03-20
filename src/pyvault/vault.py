@@ -18,7 +18,6 @@ def init_vault(path):
     config = {
         "version": APP_VERSION,
         "salt": os.urandom(16).hex(),
-        "vault_lock_status": False,
         "excluded_files": [
             "config.json",
         ],
@@ -91,6 +90,7 @@ def decrypt_file(filename, f, salthash):
             file_salt_hash = read_file.read(32)
             
             if file_salt_hash != salthash:
+                os.remove(new_filename)
                 return 'wrong_salt'
             
             with progressbar(filesize, filename) as bar:
@@ -128,7 +128,8 @@ def get_files():
 
 
 def encrypt_vault(password):
-    vault_files = get_files()['unencrypted_files']
+    config = get_config()
+    vault_files = get_files()
     
     if len(vault_files) == 0:
         return 'empty'
@@ -141,15 +142,26 @@ def encrypt_vault(password):
     salt_hash_obj.update(salt)
     salt_hash = salt_hash_obj.finalize()
 
-    for filename in vault_files:
+    succesful_files = []
+    unsuccesful_files = []
+
+    for filename in vault_files['unencrypted_files']:
         status = encrypt_file(filename, f, salt_hash)
 
         if status == 'abort':
-            return 'abort'
+            unsuccesful_files.append(filename)
+        else:
+            succesful_files.append(filename)
+    
+    return {
+        "succesful_files": succesful_files,
+        "unsuccesful_files": unsuccesful_files,
+    }
 
 
 def decrypt_vault(password):
-    vault_files = get_files()['encrypted_files']
+    config = get_config()
+    vault_files = get_files()
 
     if len(vault_files) == 0:
         return 'empty'
@@ -162,10 +174,18 @@ def decrypt_vault(password):
     salt_hash_obj.update(salt)
     salt_hash = salt_hash_obj.finalize()
 
-    for filename in vault_files:
+    succesful_files = []
+    unsuccesful_files = []
+
+    for filename in vault_files['encrypted_files']:
         status = decrypt_file(filename, f, salt_hash)
+        
         if status in ['abort', 'wrong_salt']:
-            return status
+            unsuccesful_files.append(filename)
+        else:
+            succesful_files.append(filename)
     
-    config["vault_lock_status"] = False
-    set_config(config, "config.json")
+    return {
+        "succesful_files": succesful_files,
+        "unsuccesful_files": unsuccesful_files,
+    }
