@@ -5,6 +5,7 @@ description = "File encryption app"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "beaupy>=3.10.1",
     "click>=8.1.8",
     "cryptography==43.0.1",
     "maskpass==0.3.7",
