@@ -4,6 +4,8 @@ import os
 
 from .decorators import clear_console, validate_vault
 from .vault import init_vault, encrypt_vault, decrypt_vault, get_config
+from .settings import APP_VERSION
+
 
 @clear_console
 @click.command
@@ -77,9 +79,18 @@ def decrypt(key):
 
 
 # Grouping the commands
-@click.group
-def cli():
-    pass
+@click.group(invoke_without_command=True)
+@click.pass_context
+@click.option("-V", "--version", help="Show the version of the package", is_flag=True)
+def cli(ctx, version):
+    if version:
+        click.echo(f"PyVault v{APP_VERSION}")
+        return
+
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        return
+
 
 cli.add_command(init)
 cli.add_command(encrypt)
