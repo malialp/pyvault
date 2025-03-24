@@ -125,7 +125,7 @@ def decrypt_file(filename, f, salthash):
 
 def get_files():
     config = get_config()
-    files = os.listdir('.')
+    files = [f for f in os.listdir('.') if os.path.isfile(f)]
 
     excluded_files = set(config['excluded_files'])
     encrypted_files = {file for file in files if file.endswith('.enc')}
