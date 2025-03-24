@@ -7,8 +7,8 @@ import os
 import base64
 import json
 
-from .utils import progressbar
-from .settings import ENCRYPT_CHUNK_SIZE, DECRYPT_CHUNK_SIZE, APP_VERSION
+from .utils import progressbar, random_string
+from .settings import ENCRYPT_CHUNK_SIZE, DECRYPT_CHUNK_SIZE, FILENAME_ENCRYPT_CHUNK_SIZE, FILENAME_DECRYPT_CHUNK_SIZE, APP_VERSION
 
 
 def init_vault(path):
@@ -62,12 +62,21 @@ def get_fernet(password):
 
 
 def encrypt_file(filename, f, salthash):
-    with open(filename, 'rb') as read_file, open(filename + '.enc', 'wb') as write_file:
-        write_file.write(salthash)
-        filesize = os.path.getsize(filename) + 32
+    new_filename = random_string(16) + '.enc'
+
+    filename_bytes = bytes(filename[:FILENAME_ENCRYPT_CHUNK_SIZE].ljust(FILENAME_ENCRYPT_CHUNK_SIZE, "0"), 'utf-8')
+    filename_encrypted = f.encrypt(filename_bytes)
+    
+    with open(filename, 'rb') as read_file, open(new_filename, 'wb') as write_file:
+        filesize = os.path.getsize(filename)
         
+        write_file.write(salthash)
+        write_file.write(filename_encrypted)
+        
+        filesize += 32 + FILENAME_DECRYPT_CHUNK_SIZE
+
         with progressbar(filesize, filename) as bar:
-            bar.update(32)
+            bar.update(FILENAME_DECRYPT_CHUNK_SIZE + 32)
 
             while True:
                 block = read_file.read(ENCRYPT_CHUNK_SIZE)
@@ -83,34 +92,36 @@ def encrypt_file(filename, f, salthash):
 
 
 def decrypt_file(filename, f, salthash):
-    new_filename = '.'.join(filename.split('.')[:-1])
     try:
-        with open(filename, 'rb') as read_file, open(new_filename, 'wb') as write_file:
+        with open(filename, 'rb') as read_file:
             filesize = os.path.getsize(filename)
             file_salt_hash = read_file.read(32)
-            
+
             if file_salt_hash != salthash:
-                os.remove(new_filename)
                 return 'wrong_salt'
-            
-            with progressbar(filesize, filename) as bar:
-                bar.update(32)
 
-                while True:
-                    block = read_file.read(DECRYPT_CHUNK_SIZE)
-                    
-                    if not block:
-                        break
-                    
-                    decrypted = f.decrypt(block)
-                    write_file.write(decrypted)
-                    bar.update(len(block))
+            encrypted_filename = read_file.read(FILENAME_DECRYPT_CHUNK_SIZE)
+            new_filename = f.decrypt(encrypted_filename).decode('utf-8').rstrip('0')
 
+            with open(new_filename, 'wb') as write_file:
+                with progressbar(filesize, filename) as bar:
+                    bar.update(32 + FILENAME_DECRYPT_CHUNK_SIZE)
+
+                    while True:
+                        block = read_file.read(DECRYPT_CHUNK_SIZE)
+
+                        if not block:
+                            break
+
+                        decrypted = f.decrypt(block)
+                        write_file.write(decrypted)
+                        bar.update(len(block))
+        
         os.remove(filename)
     except:
         os.remove(new_filename)
         return 'abort'
-
+        
 
 def get_files():
     config = get_config()
