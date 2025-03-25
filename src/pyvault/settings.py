@@ -1,13 +1,9 @@
 import os
-import toml
 
 
 # APP SETTINGS
-pyproject_path = os.path.join(os.path.dirname(__file__), "../../pyproject.toml")
-pyproject_data = toml.load(pyproject_path)
-
-APP_NAME = pyproject_data["project"]["name"]
-APP_VERSION = pyproject_data["project"]["version"]
+APP_NAME = "PyVault"
+APP_VERSION = "0.2.0"
 
 EXCLUDED_FILES = ["config.json"]
 
