@@ -8,7 +8,12 @@ import base64
 import json
 
 from .utils import progressbar, random_string
-from .settings import ENCRYPT_CHUNK_SIZE, DECRYPT_CHUNK_SIZE, FILENAME_ENCRYPT_CHUNK_SIZE, FILENAME_DECRYPT_CHUNK_SIZE, APP_VERSION
+from .settings import (ENCRYPT_CHUNK_SIZE,
+                       DECRYPT_CHUNK_SIZE,
+                       FILENAME_ENCRYPT_CHUNK_SIZE,
+                       FILENAME_DECRYPT_CHUNK_SIZE,
+                       EXCLUDED_FILES,
+                       APP_VERSION)
 
 
 def init_vault(path):
@@ -18,9 +23,7 @@ def init_vault(path):
     config = {
         "version": APP_VERSION,
         "salt": os.urandom(16).hex(),
-        "excluded_files": [
-            "config.json",
-        ],
+        "user_excluded_files": [],
     }
 
     config_path = os.path.join(base_path, "config.json")
@@ -35,7 +38,7 @@ def get_config():
         return config
 
 
-def set_config(config, path):
+def set_config(config, path="config.json"):
     if os.path.exists(path):
         os.chmod(path, 0o666)
     
@@ -127,7 +130,7 @@ def get_files():
     config = get_config()
     files = [f for f in os.listdir('.') if os.path.isfile(f)]
 
-    excluded_files = set(config['excluded_files'])
+    excluded_files = set(EXCLUDED_FILES) | set(config['user_excluded_files'])
     encrypted_files = {file for file in files if file.endswith('.enc')}
     unencrypted_files = {file for file in files if not file.endswith('.enc')}
 

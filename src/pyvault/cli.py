@@ -1,10 +1,16 @@
+from beaupy import select_multiple
+
 import click
 import maskpass
 import os
 
 from .decorators import clear_console, validate_vault
-from .vault import init_vault, encrypt_vault, decrypt_vault, get_config
-from .settings import APP_VERSION
+from .vault import init_vault, encrypt_vault, decrypt_vault, get_config, set_config
+from .settings import (APP_VERSION,
+                       CHECKBOX_TICK_CHAR,
+                       CHECKBOX_CURSOR_STYLE,
+                       CHECKBOX_TICK_STYLE,
+                       EXCLUDED_FILES)
 
 
 @clear_console
@@ -77,6 +83,44 @@ def decrypt(key):
     click.echo("\n🔓 Vault decrypted successfully.")
 
 
+@clear_console
+@validate_vault
+@click.command
+@click.option("-l", "--list", help="List excluded files.", is_flag=True)
+def exclude(list):
+    config = get_config()
+    
+    count = len(config['user_excluded_files'])
+
+    if list:
+        click.echo(f"{click.style(count, fg='green')} files excluded.")
+        click.echo("Excluded files: ")
+        for file in config['user_excluded_files']:
+            click.echo(click.style(f"  - {file}", fg='blue'))
+        return
+    
+    user_excluded_files = config['user_excluded_files']
+    
+    files = [f for f in os.listdir('.') if os.path.isfile(f) and f not in EXCLUDED_FILES]
+    ticked_indices = [files.index(f) for f in user_excluded_files if f in files]
+    user_excluded_files = select_multiple(files,
+                                     cursor_style=CHECKBOX_CURSOR_STYLE,
+                                     tick_style=CHECKBOX_TICK_STYLE,
+                                     tick_character=CHECKBOX_TICK_CHAR,
+                                     ticked_indices=ticked_indices,
+                                     pagination=True,
+                                     page_size=10)
+
+    config['user_excluded_files'] = user_excluded_files
+    set_config(config)
+
+    count = len(user_excluded_files)
+
+    click.echo(f"{click.style(count, fg='green')} files excluded.")
+    click.echo(f"Excluded files: ")
+    for file in user_excluded_files:
+        click.echo(click.style(f"  - {file}", fg='blue'))
+
 
 # Grouping the commands
 @click.group(invoke_without_command=True)
@@ -95,3 +139,4 @@ def cli(ctx, version):
 cli.add_command(init)
 cli.add_command(encrypt)
 cli.add_command(decrypt)
+cli.add_command(exclude)
