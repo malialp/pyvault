@@ -95,6 +95,7 @@ def encrypt_file(filename, f, salthash):
 
 
 def decrypt_file(filename, f, salthash):
+    new_filename = None
     try:
         with open(filename, 'rb') as read_file:
             filesize = os.path.getsize(filename)
@@ -122,7 +123,8 @@ def decrypt_file(filename, f, salthash):
         
         os.remove(filename)
     except:
-        os.remove(new_filename)
+        if new_filename and os.path.exists(new_filename):
+            os.remove(new_filename)
         return 'abort'
         
 
