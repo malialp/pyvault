@@ -1,35 +1,134 @@
-PyVault is a command-line interface (CLI) tool designed for securely encrypting files using strong encryption methods. It’s perfect for protecting sensitive data, making it an essential tool for personal use.
+# PyVault
 
-## How to use
+**PyVault** is a command-line interface (CLI) tool designed for securely encrypting files using strong encryption methods. It's perfect for protecting sensitive data, making it an essential tool for personal use.
 
-If you have a folder containing sensitive information that you'd like to encrypt with a password, follow these steps:
+## Features
+
+- **AES Encryption** - Industry-standard encryption via Fernet (AES-128-CBC + HMAC)
+- **Embedded Thumbnails** - Automatic thumbnail generation for images and videos (v0.3.0+)
+- **Versioned Container Format** - Forward-compatible `.enc` file structure
+- **Backward Compatible** - Seamlessly decrypts files from older versions
+- **Progress Tracking** - Visual progress bar for large file operations
+
+### Supported Thumbnail Formats
+
+| Type | Extensions |
+|------|------------|
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp` |
+| Videos | `.mp4`, `.mov`, `.mkv`, `.avi`, `.webm` |
+
+> **Note:** Video thumbnails require [FFmpeg](https://ffmpeg.org/) to be installed and available in PATH.
+
+## Installation
+
+```bash
+pip install pyvault
+```
+
+### Dependencies
+
+- Python 3.11+
+- cryptography
+- Pillow (for image thumbnails)
+- FFmpeg (optional, for video thumbnails)
+
+## Usage
 
 ### Initialization
 
-First, initialize the application in the target folder. Open a terminal in the folder and run:
+First, initialize the application in the target folder:
 
 ```bash
 vault init .
 ```
 
-This will create a `config.json` file in the folder. Now you're ready to encrypt files.
+This creates a `config.json` file required for encryption/decryption.
 
 > [!CAUTION]
 > Do not delete the `config.json` file. It is required for decryption along with your password. Without it, decryption will be impossible.
 
-### Commands
+### Encrypting Files
 
 ```bash
-vault encrypt [OPTIONS]
-vault decrypt [OPTIONS]
+vault encrypt
 ```
 
-Each time you use these commands, the program will prompt you for your password. To skip the prompt, you can use the `-k` flag:
+You will be prompted to enter and confirm your password. To skip the prompt:
 
 ```bash
 vault encrypt -k <your-password>
+```
+
+### Decrypting Files
+
+```bash
+vault decrypt
+```
+
+Or with password flag:
+
+```bash
 vault decrypt -k <your-password>
 ```
+
+### Excluding Files
+
+To exclude specific files from encryption:
+
+```bash
+vault exclude
+```
+
+This opens an interactive selector. To list currently excluded files:
+
+```bash
+vault exclude -l
+```
+
+### Version
+
+```bash
+vault --version
+```
+
+## Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `vault init [PATH]` | Initialize a new vault (default: `./vault`) |
+| `vault encrypt [-k KEY]` | Encrypt all unencrypted files |
+| `vault decrypt [-k KEY]` | Decrypt all encrypted files |
+| `vault exclude [-l]` | Manage excluded files |
+| `vault --version` | Show version information |
+| `vault --help` | Show help message |
+
+## Technical Details
+
+### Container Format (v3)
+
+PyVault v0.3.0 introduces a new versioned binary container format:
+
+```
+┌─────────────────────────────────────────┐
+│ HEADER (48 bytes)                       │
+│ - Magic bytes: "ENCF"                   │
+│ - Version: 3                            │
+│ - Flags (thumbnail, media type)         │
+│ - Section offsets and sizes             │
+├─────────────────────────────────────────┤
+│ SECTIONS                                │
+│ - Salt (for key derivation)             │
+│ - Encrypted Thumbnail (optional)        │
+│ - Encrypted Filename                    │
+│ - Encrypted Data                        │
+└─────────────────────────────────────────┘
+```
+
+### Security
+
+- **Key Derivation:** PBKDF2-HMAC-SHA256 with 480,000 iterations
+- **Encryption:** Fernet (AES-128-CBC with HMAC-SHA256)
+- **Salt:** 16 bytes random per vault
 
 ## License
 
