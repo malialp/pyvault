@@ -54,7 +54,7 @@ def encrypt(key):
 
         return
 
-    click.echo("\n🔒 Vault Encrypted successfully.")
+    click.echo(click.style("\n[+] Vault Encrypted successfully.", fg='green', bold=True))
     
 
 @clear_console
@@ -80,7 +80,7 @@ def decrypt(key):
 
         return
     
-    click.echo("\n🔓 Vault decrypted successfully.")
+    click.echo(click.style("\n[+] Vault decrypted successfully.", fg='green', bold=True))
 
 
 @clear_console

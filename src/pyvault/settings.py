@@ -1,9 +1,6 @@
-import os
-
-
 # APP SETTINGS
 APP_NAME = "PyVault"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 
 EXCLUDED_FILES = ["config.json"]
 
