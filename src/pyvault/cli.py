@@ -122,6 +122,20 @@ def exclude(list):
         click.echo(click.style(f"  - {file}", fg='blue'))
 
 
+@validate_vault
+@click.command
+def gui():
+    """Launch the graphical user interface."""
+    try:
+        from .gui import run_gui
+        exit_code = run_gui()
+        raise SystemExit(exit_code)
+    except ImportError as e:
+        click.echo(click.style("Error: GUI dependencies not installed.", fg='red'))
+        click.echo(click.style("Please install PyQt6: pip install PyQt6", fg='yellow'))
+        raise SystemExit(1)
+
+
 # Grouping the commands
 @click.group(invoke_without_command=True)
 @click.pass_context
@@ -140,3 +154,4 @@ cli.add_command(init)
 cli.add_command(encrypt)
 cli.add_command(decrypt)
 cli.add_command(exclude)
+cli.add_command(gui)

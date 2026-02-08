@@ -5,7 +5,8 @@
 ## Features
 
 - **AES Encryption** - Industry-standard encryption via Fernet (AES-128-CBC + HMAC)
-- **Embedded Thumbnails** - Automatic thumbnail generation for images and videos (v0.3.0+)
+- **Graphical Interface** - Modern file explorer-style GUI with thumbnail previews
+- **Embedded Thumbnails** - Automatic thumbnail generation for images and videos
 - **Versioned Container Format** - Forward-compatible `.enc` file structure
 - **Backward Compatible** - Seamlessly decrypts files from older versions
 - **Progress Tracking** - Visual progress bar for large file operations
@@ -30,6 +31,7 @@ pip install pyvault
 - Python 3.11+
 - cryptography
 - Pillow (for image thumbnails)
+- PyQt6 (for GUI)
 - FFmpeg (optional, for video thumbnails)
 
 ## Usage
@@ -85,6 +87,20 @@ This opens an interactive selector. To list currently excluded files:
 vault exclude -l
 ```
 
+### Graphical Interface
+
+Launch the modern GUI for visual file management:
+
+```bash
+vault gui
+```
+
+The GUI provides:
+- 📁 File explorer-style grid view with thumbnails
+- 🔍 Search and filter by filename or extension
+- ✅ Multi-select with Ctrl/Shift click
+- 🔓 Batch decrypt selected files
+
 ### Version
 
 ```bash
@@ -99,6 +115,7 @@ vault --version
 | `vault encrypt [-k KEY]` | Encrypt all unencrypted files |
 | `vault decrypt [-k KEY]` | Decrypt all encrypted files |
 | `vault exclude [-l]` | Manage excluded files |
+| `vault gui` | Launch the graphical interface |
 | `vault --version` | Show version information |
 | `vault --help` | Show help message |
 

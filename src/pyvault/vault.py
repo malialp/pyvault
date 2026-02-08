@@ -496,15 +496,17 @@ def decrypt_vault(password: str) -> dict:
 
 # --- Thumbnail Access Functions (for future GUI use) ---
 
-def get_thumbnail(enc_file_path: str, password: str) -> Optional[bytes]:
+def get_thumbnail_fast(enc_file_path: str, fernet, salt_hash: bytes) -> Optional[bytes]:
     """
-    Extract and decrypt thumbnail from an encrypted file.
+    Extract and decrypt thumbnail from an encrypted file using pre-created fernet.
     
-    This function is provided for future GUI integration.
+    This is the optimized version that avoids key derivation on each call.
+    Use this when loading multiple thumbnails in a batch.
     
     Args:
         enc_file_path: Path to .enc file
-        password: Decryption password
+        fernet: Pre-created Fernet instance (from get_fernet)
+        salt_hash: Pre-computed salt hash for verification
         
     Returns:
         Decrypted thumbnail bytes (JPEG) or None if no thumbnail
@@ -522,14 +524,7 @@ def get_thumbnail(enc_file_path: str, password: str) -> Optional[bytes]:
             if not header.has_thumbnail:
                 return None
             
-            # Get fernet for decryption
-            fernet = get_fernet(password)
-            
             # Verify salt
-            config = get_config()
-            salt = bytes.fromhex(config["salt"])
-            salt_hash = hash_salt(salt)
-            
             file_salt_hash = reader.read_salt()
             if file_salt_hash != salt_hash:
                 return None
@@ -540,6 +535,35 @@ def get_thumbnail(enc_file_path: str, password: str) -> Optional[bytes]:
                 return None
             
             return fernet.decrypt(encrypted_thumbnail)
+            
+    except Exception:
+        return None
+
+
+def get_thumbnail(enc_file_path: str, password: str) -> Optional[bytes]:
+    """
+    Extract and decrypt thumbnail from an encrypted file.
+    
+    NOTE: This function performs key derivation on each call which is slow.
+    For batch operations, use get_thumbnail_fast() with a pre-created fernet.
+    
+    Args:
+        enc_file_path: Path to .enc file
+        password: Decryption password
+        
+    Returns:
+        Decrypted thumbnail bytes (JPEG) or None if no thumbnail
+    """
+    try:
+        # Get fernet for decryption (slow - key derivation)
+        fernet = get_fernet(password)
+        
+        # Get salt hash
+        config = get_config()
+        salt = bytes.fromhex(config["salt"])
+        salt_hash = hash_salt(salt)
+        
+        return get_thumbnail_fast(enc_file_path, fernet, salt_hash)
             
     except Exception:
         return None
