@@ -395,7 +395,7 @@ def get_files() -> dict:
         - unencrypted_files: Set of non-.enc files
     """
     config = get_config()
-    files = [f for f in os.listdir('.') if os.path.isfile(f)]
+    files = [e.name for e in os.scandir('.') if e.is_file()]
 
     excluded_files = set(EXCLUDED_FILES) | set(config['user_excluded_files'])
     encrypted_files = {file for file in files if file.endswith('.enc')}

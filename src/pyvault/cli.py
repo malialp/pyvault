@@ -101,7 +101,7 @@ def exclude(list):
     
     user_excluded_files = config['user_excluded_files']
     
-    files = [f for f in os.listdir('.') if os.path.isfile(f) and f not in EXCLUDED_FILES]
+    files = [e.name for e in os.scandir('.') if e.is_file() and e.name not in EXCLUDED_FILES]
     ticked_indices = [files.index(f) for f in user_excluded_files if f in files]
     user_excluded_files = select_multiple(files,
                                      cursor_style=CHECKBOX_CURSOR_STYLE,
