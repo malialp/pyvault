@@ -20,6 +20,7 @@ from enum import Enum
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 
 
@@ -140,12 +141,80 @@ def create_fernet(password: str, salt: bytes, context: EncryptionContext = Encry
     return Fernet(key, backend=default_backend())
 
 
+def derive_master_key(password: str, salt: bytes) -> bytes:
+    """
+    Derive a master key from password using PBKDF2.
+    
+    This is the expensive operation (~1-2 seconds with 480k iterations).
+    The master key should then be used with HKDF to derive context-specific keys.
+    
+    Args:
+        password: User password
+        salt: Base salt bytes
+        
+    Returns:
+        32-byte master key
+    """
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=PBKDF2_KEY_LENGTH,
+        salt=salt,
+        iterations=PBKDF2_ITERATIONS,
+        backend=default_backend()
+    )
+    return kdf.derive(password.encode('utf-8'))
+
+
+def derive_context_key(master_key: bytes, context: EncryptionContext) -> bytes:
+    """
+    Derive a context-specific key from master key using HKDF.
+    
+    This is very fast (~microseconds) compared to PBKDF2.
+    
+    Args:
+        master_key: Master key from derive_master_key()
+        context: Encryption context for key isolation
+        
+    Returns:
+        URL-safe base64 encoded key suitable for Fernet
+    """
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=PBKDF2_KEY_LENGTH,
+        salt=context.value,  # Use context as salt for HKDF
+        info=b"pyvault-key-derivation",
+        backend=default_backend()
+    )
+    derived = hkdf.derive(master_key)
+    return base64.urlsafe_b64encode(derived)
+
+
+def create_fernet_from_master_key(master_key: bytes, context: EncryptionContext) -> Fernet:
+    """
+    Create a Fernet instance from a pre-derived master key.
+    
+    This is fast because it uses HKDF instead of PBKDF2.
+    
+    Args:
+        master_key: Master key from derive_master_key()
+        context: Encryption context
+        
+    Returns:
+        Configured Fernet instance
+    """
+    key = derive_context_key(master_key, context)
+    return Fernet(key, backend=default_backend())
+
+
 class CryptoService:
     """
     Service class for encryption and decryption operations.
     
     Provides a unified interface for all cryptographic operations
     with support for multiple encryption contexts.
+    
+    Performance: Uses single PBKDF2 + HKDF for fast multi-context key derivation.
+    Instead of 3x PBKDF2 (~3-6 seconds), we do 1x PBKDF2 + 3x HKDF (~1-2 seconds).
     """
     
     def __init__(self, password: str, salt: bytes):
@@ -160,10 +229,13 @@ class CryptoService:
         self._salt = salt
         self._salt_hash = hash_salt(salt)
         
-        # Create Fernet instances for each context
-        self._data_fernet = create_fernet(password, salt, EncryptionContext.DATA)
-        self._filename_fernet = create_fernet(password, salt, EncryptionContext.FILENAME)
-        self._thumbnail_fernet = create_fernet(password, salt, EncryptionContext.THUMBNAIL)
+        # Derive master key once (expensive PBKDF2 operation)
+        master_key = derive_master_key(password, salt)
+        
+        # Create Fernet instances for each context using fast HKDF
+        self._data_fernet = create_fernet_from_master_key(master_key, EncryptionContext.DATA)
+        self._filename_fernet = create_fernet_from_master_key(master_key, EncryptionContext.FILENAME)
+        self._thumbnail_fernet = create_fernet_from_master_key(master_key, EncryptionContext.THUMBNAIL)
     
     @property
     def salt(self) -> bytes:
