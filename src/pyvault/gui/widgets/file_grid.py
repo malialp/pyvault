@@ -408,3 +408,95 @@ class FileGrid(QScrollArea):
             if card.enc_filename == enc_filename:
                 card.set_thumbnail(thumbnail_data)
                 break
+    
+    def remove_files(self, enc_filenames: List[str]) -> List[FileInfo]:
+        """
+        Remove files from the grid by their enc_filename.
+        
+        Args:
+            enc_filenames: List of enc_filenames to remove
+            
+        Returns:
+            List of FileInfo for removed files (useful for adding to another grid)
+        """
+        filenames_set = set(enc_filenames)
+        removed_infos = []
+        cards_to_remove = []
+        
+        for card in self._cards:
+            if card.enc_filename in filenames_set:
+                # Store info before removing
+                removed_infos.append(FileInfo(
+                    enc_filename=card.enc_filename,
+                    original_filename=card.original_filename,
+                    thumbnail_data=card.get_thumbnail_data(),
+                    has_thumbnail=card.has_thumbnail,
+                    is_image=card.is_image,
+                    is_encrypted=card.is_encrypted
+                ))
+                cards_to_remove.append(card)
+                
+                # Remove from selection if selected
+                if card in self._selected:
+                    self._selected.remove(card)
+        
+        # Remove cards
+        for card in cards_to_remove:
+            self._cards.remove(card)
+            if card in self._visible_cards:
+                self._visible_cards.remove(card)
+            self._flow.remove_widget(card)
+        
+        # Update last clicked if removed
+        if self._last_clicked in cards_to_remove:
+            self._last_clicked = None
+        
+        # Update empty state
+        self._empty_label.setVisible(len(self._visible_cards) == 0)
+        
+        # Emit selection change
+        self.selection_changed.emit(list(self._selected))
+        
+        return removed_infos
+    
+    def add_files(self, files: List[FileInfo]):
+        """
+        Add files to the grid without clearing existing files.
+        
+        Args:
+            files: List of FileInfo objects to add
+        """
+        for file_info in files:
+            card = FileCard(
+                enc_filename=file_info.enc_filename,
+                original_filename=file_info.original_filename,
+                thumbnail_data=file_info.thumbnail_data,
+                has_thumbnail=file_info.has_thumbnail,
+                is_image=file_info.is_image,
+                is_encrypted=file_info.is_encrypted
+            )
+            
+            # Connect signals
+            card.clicked.connect(self._on_card_clicked)
+            card.double_clicked.connect(self._on_card_double_clicked)
+            card.context_menu_requested.connect(self._on_context_menu)
+            
+            self._cards.append(card)
+            
+            # Check if it passes current filter
+            passes_filter = True
+            
+            if self._filter_extension:
+                if card.get_extension() != self._filter_extension:
+                    passes_filter = False
+            
+            if self._filter_text:
+                if self._filter_text.lower() not in card.original_filename.lower():
+                    passes_filter = False
+            
+            if passes_filter:
+                self._flow.add_widget(card)
+                self._visible_cards.append(card)
+        
+        # Update empty state
+        self._empty_label.setVisible(len(self._visible_cards) == 0)

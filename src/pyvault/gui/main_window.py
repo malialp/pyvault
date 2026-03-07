@@ -129,6 +129,31 @@ class FileTab(QWidget):
         """Update a thumbnail."""
         self._file_grid.update_card_thumbnail(enc_filename, thumbnail_data)
     
+    def remove_files(self, enc_filenames: list):
+        """Remove files from the grid by their enc_filename."""
+        self._file_grid.remove_files(enc_filenames)
+        self._search_bar.set_extensions(self._file_grid.get_extensions())
+        self._update_counts()
+    
+    def add_files(self, items: list):
+        """Add files to the grid."""
+        from .workers import FileItem
+        files = [
+            FileInfo(
+                enc_filename=item.enc_filename,
+                original_filename=item.original_filename,
+                thumbnail_data=None,
+                has_thumbnail=item.has_thumbnail,
+                is_image=item.is_image,
+                extension=item.extension,
+                is_encrypted=item.is_encrypted
+            )
+            for item in items
+        ]
+        self._file_grid.add_files(files)
+        self._search_bar.set_extensions(self._file_grid.get_extensions())
+        self._update_counts()
+    
     def _on_selection_changed(self, selected: list):
         """Handle selection change."""
         self._toolbar.set_selection_count(len(selected))
@@ -602,13 +627,86 @@ class MainWindow(QMainWindow):
                     QMessageBox.StandardButton.Ok
                 )
             
-            self._load_files()
+            # Optimize: Instead of reloading everything, just move the affected files
+            if successful:
+                self._update_after_operation(cards, successful, operation)
         
         self._operation_worker.progress.connect(on_progress)
         self._operation_worker.finished.connect(on_finished)
         progress.canceled.connect(self._operation_worker.cancel)
         
         self._operation_worker.start()
+    
+    def _update_after_operation(self, cards: list, successful: list, operation: str):
+        """
+        Update UI after encrypt/decrypt operation without full reload.
+        
+        This is much more efficient than _load_files() because:
+        - We don't re-read the entire directory
+        - We don't reload thumbnails for unchanged files
+        - We only process the affected files
+        """
+        from ..thumbnail import get_media_type, MediaType
+        
+        successful_set = set(successful)
+        
+        # Build a map from enc_filename to card for quick lookup
+        card_map = {card.enc_filename: card for card in cards}
+        
+        if operation == "decrypt":
+            # Remove from encrypted tab, add to unencrypted tab
+            files_to_remove = [f for f in successful if f in card_map]
+            self._encrypted_tab.remove_files(files_to_remove)
+            
+            # Create FileItems for the newly decrypted files
+            new_items = []
+            thumbnail_files = []
+            
+            for enc_filename in files_to_remove:
+                card = card_map[enc_filename]
+                # After decrypt, the file is now named original_filename
+                new_filename = card.original_filename
+                
+                # Check if it's an image/video for thumbnail
+                media_type = get_media_type(new_filename)
+                is_image = (media_type == MediaType.IMAGE)
+                is_video = (media_type == MediaType.VIDEO)
+                has_thumb = is_image or is_video
+                
+                new_items.append(FileItem(
+                    enc_filename=new_filename,  # Now the actual filename
+                    original_filename=new_filename,
+                    extension=os.path.splitext(new_filename)[1].lower(),
+                    has_thumbnail=has_thumb,
+                    is_image=is_image,
+                    is_encrypted=False
+                ))
+                
+                # Only load thumbnails for images (videos are slow)
+                if is_image:
+                    thumbnail_files.append(new_filename)
+            
+            if new_items:
+                self._unencrypted_tab.add_files(new_items)
+            
+            # Load thumbnails for newly added files only
+            if thumbnail_files:
+                self._load_thumbnails(thumbnail_files, is_encrypted=False)
+            
+        else:
+            # Encrypt: For now, fall back to full reload since finding the new
+            # .enc filename requires decrypting each filename to match.
+            # This is acceptable since encrypt operations are less common
+            # and typically involve fewer files than the initial load.
+            self._load_files()
+            return
+        
+        # Update tab counts
+        enc_count = self._encrypted_tab.get_file_count()
+        unenc_count = self._unencrypted_tab.get_file_count()
+        self._tab_widget.setTabText(0, f"Encrypted ({enc_count})")
+        self._tab_widget.setTabText(1, f"Unencrypted ({unenc_count})")
+        self._set_status(f"Ready - {enc_count + unenc_count} files")
     
     def _cancel_workers(self):
         """Cancel all running workers."""

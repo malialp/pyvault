@@ -135,6 +135,7 @@ class FileCard(QFrame):
         self.is_encrypted = is_encrypted
         self._selected = False
         self._hover = False
+        self._thumbnail_data = thumbnail_data
         
         self._setup_ui(thumbnail_data)
         self._update_style()
@@ -257,6 +258,10 @@ class FileCard(QFrame):
     
     def set_thumbnail(self, data: bytes):
         """Set thumbnail from raw bytes."""
+        self._thumbnail_data = data
         self.thumbnail_label.set_thumbnail(data)
         self.has_thumbnail = True
 
+    def get_thumbnail_data(self) -> Optional[bytes]:
+        """Get the raw thumbnail data."""
+        return self._thumbnail_data
