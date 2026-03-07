@@ -70,7 +70,6 @@ class FileListWorker(QThread):
     
     def _load_encrypted(self):
         """Load encrypted file names."""
-        from ..vault import get_file_info
         from ..container import ContainerReader
         from ..settings import FILENAME_DECRYPT_CHUNK_SIZE
         
@@ -88,31 +87,31 @@ class FileListWorker(QThread):
             )
             
             try:
-                # Get basic info (fast - just reads header)
-                info = get_file_info(enc_filename)
-                if info:
-                    item.has_thumbnail = info.get('has_thumbnail', False)
-                    item.is_image = info.get('is_image', False)
-                
-                # Decrypt filename (fast)
-                try:
-                    with open(enc_filename, 'rb') as f:
-                        reader = ContainerReader(f)
-                        is_new = reader.detect_format()
+                # Single file open - read header, salt, and filename together
+                with open(enc_filename, 'rb') as f:
+                    reader = ContainerReader(f)
+                    is_new = reader.detect_format()
+                    
+                    if is_new:
+                        # New format (v3) - has header with metadata
+                        header = reader.read_header()
+                        item.has_thumbnail = header.has_thumbnail
+                        item.is_image = header.is_image
                         
-                        if is_new:
-                            reader.read_header()
-                            file_salt = reader.read_salt()
-                            if file_salt == self._salt_hash:
-                                encrypted_name = reader.read_encrypted_filename(FILENAME_DECRYPT_CHUNK_SIZE)
-                                item.original_filename = self._fernet.decrypt(encrypted_name).decode('utf-8').rstrip('0')
-                        else:
-                            file_salt = f.read(32)
-                            if file_salt == self._salt_hash:
-                                encrypted_name = f.read(FILENAME_DECRYPT_CHUNK_SIZE)
-                                item.original_filename = self._fernet.decrypt(encrypted_name).decode('utf-8').rstrip('0')
-                except Exception:
-                    pass
+                        # Read salt and decrypt filename
+                        file_salt = reader.read_salt()
+                        if file_salt == self._salt_hash:
+                            encrypted_name = reader.read_encrypted_filename(FILENAME_DECRYPT_CHUNK_SIZE)
+                            item.original_filename = self._fernet.decrypt(encrypted_name).decode('utf-8').rstrip('0')
+                    else:
+                        # Legacy format - no thumbnail support
+                        item.has_thumbnail = False
+                        item.is_image = False
+                        
+                        file_salt = f.read(32)
+                        if file_salt == self._salt_hash:
+                            encrypted_name = f.read(FILENAME_DECRYPT_CHUNK_SIZE)
+                            item.original_filename = self._fernet.decrypt(encrypted_name).decode('utf-8').rstrip('0')
                 
                 item.extension = os.path.splitext(item.original_filename)[1].lower()
                 
@@ -224,7 +223,7 @@ class ThumbnailWorker(QThread):
     
     def _load_encrypted_thumbnails(self):
         """Load thumbnails from encrypted files."""
-        from ..vault import get_thumbnail_fast, get_thumbnail, get_file_info, get_fernet, get_config
+        from ..vault import get_thumbnail_fast, get_thumbnail, get_fernet, get_config
         from ..crypto import hash_salt
         
         # Use pre-created fernet if available, otherwise create once
@@ -243,11 +242,8 @@ class ThumbnailWorker(QThread):
                 break
             
             try:
-                info = get_file_info(enc_filename)
-                if not info or not info.get('has_thumbnail', False):
-                    continue
-                
-                # Use fast version with pre-created fernet
+                # get_thumbnail_fast already checks has_thumbnail internally
+                # No need to call get_file_info separately (avoids double file open)
                 if fernet is not None:
                     thumbnail_data = get_thumbnail_fast(enc_filename, fernet, salt_hash)
                 else:
