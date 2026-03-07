@@ -13,7 +13,7 @@ Encryption scheme:
 
 import base64
 import hashlib
-from typing import Optional, Iterator
+from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -441,62 +441,3 @@ class LegacyCryptoService:
             return self._fernet.decrypt(data)
         except InvalidToken:
             raise DecryptionError("Invalid password or corrupted data")
-
-
-def encrypt_chunk_iterator(
-    file_handle,
-    crypto_service: CryptoService,
-    chunk_size: int
-) -> Iterator[bytes]:
-    """
-    Iterator that yields encrypted chunks from a file.
-    
-    Args:
-        file_handle: Open file handle for reading
-        crypto_service: CryptoService instance
-        chunk_size: Size of each plaintext chunk
-        
-    Yields:
-        Encrypted chunk bytes
-    """
-    while True:
-        chunk = file_handle.read(chunk_size)
-        if not chunk:
-            break
-        yield crypto_service.encrypt_data(chunk)
-
-
-def decrypt_chunk_iterator(
-    file_handle,
-    crypto_service: CryptoService,
-    chunk_size: int,
-    total_size: Optional[int] = None
-) -> Iterator[bytes]:
-    """
-    Iterator that yields decrypted chunks from a file.
-    
-    Args:
-        file_handle: Open file handle for reading
-        crypto_service: CryptoService instance
-        chunk_size: Size of each encrypted chunk
-        total_size: Optional total size to read
-        
-    Yields:
-        Decrypted chunk bytes
-    """
-    bytes_read = 0
-    while True:
-        if total_size is not None and bytes_read >= total_size:
-            break
-        
-        to_read = chunk_size
-        if total_size is not None:
-            to_read = min(chunk_size, total_size - bytes_read)
-        
-        chunk = file_handle.read(to_read)
-        if not chunk:
-            break
-        
-        bytes_read += len(chunk)
-        yield crypto_service.decrypt_data(chunk)
-
