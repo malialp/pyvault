@@ -161,7 +161,8 @@ class MainWindow(QMainWindow):
         
         # Workers
         self._list_worker: Optional[FileListWorker] = None
-        self._thumbnail_worker: Optional[ThumbnailWorker] = None
+        self._enc_thumbnail_worker: Optional[ThumbnailWorker] = None
+        self._unenc_thumbnail_worker: Optional[ThumbnailWorker] = None
         self._operation_worker: Optional[OperationWorker] = None
         
         # File lists for thumbnail loading
@@ -471,10 +472,18 @@ class MainWindow(QMainWindow):
         if not filenames:
             return
         
-        # Cancel existing thumbnail worker
-        if self._thumbnail_worker and self._thumbnail_worker.isRunning():
-            self._thumbnail_worker.cancel()
-            self._thumbnail_worker.wait(500)
+        # Use separate workers for encrypted and unencrypted to prevent
+        # one from cancelling the other (fixes thumbnail disappearing issue)
+        if is_encrypted:
+            # Cancel only the encrypted thumbnail worker
+            if self._enc_thumbnail_worker and self._enc_thumbnail_worker.isRunning():
+                self._enc_thumbnail_worker.cancel()
+                self._enc_thumbnail_worker.wait(500)
+        else:
+            # Cancel only the unencrypted thumbnail worker
+            if self._unenc_thumbnail_worker and self._unenc_thumbnail_worker.isRunning():
+                self._unenc_thumbnail_worker.cancel()
+                self._unenc_thumbnail_worker.wait(500)
         
         # Filter to files that need thumbnails
         # For encrypted: check if has_thumbnail flag
@@ -494,8 +503,8 @@ class MainWindow(QMainWindow):
         if not files_to_load:
             return
         
-        self._thumbnail_worker = ThumbnailWorker()
-        self._thumbnail_worker.setup(
+        worker = ThumbnailWorker()
+        worker.setup(
             files=files_to_load,
             password=self._password,
             is_encrypted=is_encrypted,
@@ -503,11 +512,17 @@ class MainWindow(QMainWindow):
             salt_hash=self._salt_hash
         )
         
-        self._thumbnail_worker.thumbnail_loaded.connect(
+        worker.thumbnail_loaded.connect(
             lambda f, d: self._on_thumbnail_loaded(f, d, is_encrypted)
         )
         
-        self._thumbnail_worker.start()
+        # Store reference to appropriate worker
+        if is_encrypted:
+            self._enc_thumbnail_worker = worker
+        else:
+            self._unenc_thumbnail_worker = worker
+        
+        worker.start()
     
     def _on_thumbnail_loaded(self, enc_filename: str, data: bytes, is_encrypted: bool):
         """Handle thumbnail loaded."""
@@ -601,9 +616,13 @@ class MainWindow(QMainWindow):
             self._list_worker.cancel()
             self._list_worker.wait(500)
         
-        if self._thumbnail_worker and self._thumbnail_worker.isRunning():
-            self._thumbnail_worker.cancel()
-            self._thumbnail_worker.wait(500)
+        if self._enc_thumbnail_worker and self._enc_thumbnail_worker.isRunning():
+            self._enc_thumbnail_worker.cancel()
+            self._enc_thumbnail_worker.wait(500)
+        
+        if self._unenc_thumbnail_worker and self._unenc_thumbnail_worker.isRunning():
+            self._unenc_thumbnail_worker.cancel()
+            self._unenc_thumbnail_worker.wait(500)
     
     def _set_status(self, message: str):
         """Set status message."""
