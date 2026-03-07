@@ -90,9 +90,9 @@ class Theme:
     radius = BorderRadius()
     
     # Thumbnail sizes
-    THUMBNAIL_SIZE = 120
-    CARD_WIDTH = 140
-    CARD_HEIGHT = 160
+    THUMBNAIL_SIZE = 160
+    CARD_WIDTH = 180
+    CARD_HEIGHT = 200
 
 
 def get_stylesheet() -> str:
