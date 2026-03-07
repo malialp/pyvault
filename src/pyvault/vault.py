@@ -18,7 +18,8 @@ from .settings import (
     FILENAME_ENCRYPT_CHUNK_SIZE,
     FILENAME_DECRYPT_CHUNK_SIZE,
     EXCLUDED_FILES,
-    APP_VERSION
+    APP_VERSION,
+    FILE_BUFFER_SIZE,
 )
 from .container import (
     ContainerBuilder,
@@ -182,7 +183,8 @@ def encrypt_file(filename: str, f, salthash: bytes) -> Optional[str]:
         
         header, sections = builder.build()
         
-        with open(filename, 'rb') as read_file, open(new_filename, 'wb') as write_file:
+        with open(filename, 'rb', buffering=FILE_BUFFER_SIZE) as read_file, \
+             open(new_filename, 'wb', buffering=FILE_BUFFER_SIZE) as write_file:
             # Write container header and sections
             writer = ContainerWriter(write_file)
             writer.write_container(header, sections)
@@ -241,7 +243,7 @@ def decrypt_file(filename: str, f, salthash: bytes) -> Optional[str]:
     status = None
     
     try:
-        with open(filename, 'rb') as read_file:
+        with open(filename, 'rb', buffering=FILE_BUFFER_SIZE) as read_file:
             filesize = os.path.getsize(filename)
             
             # Detect format
@@ -299,7 +301,7 @@ def _decrypt_file_legacy(
         new_filename = f.decrypt(encrypted_filename).decode('utf-8').rstrip('0')
         
         # Decrypt data
-        with open(new_filename, 'wb') as write_file:
+        with open(new_filename, 'wb', buffering=FILE_BUFFER_SIZE) as write_file:
             with progressbar(filesize, filename) as bar:
                 bar.update(32 + FILENAME_DECRYPT_CHUNK_SIZE)
                 
@@ -357,7 +359,7 @@ def _decrypt_file_v3(
         read_file.seek(header.data_offset)
         
         # Decrypt data
-        with open(new_filename, 'wb') as write_file:
+        with open(new_filename, 'wb', buffering=FILE_BUFFER_SIZE) as write_file:
             with progressbar(filesize, filename) as bar:
                 bar.update(header.data_offset)
                 
