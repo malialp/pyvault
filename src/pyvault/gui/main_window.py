@@ -865,7 +865,6 @@ class MainWindow(QMainWindow):
     def _set_status(self, message: str):
         """Set status message."""
         self._status_label.setText(message)
-        QApplication.processEvents()
     
     def closeEvent(self, event: QCloseEvent):
         """Handle close."""
