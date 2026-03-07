@@ -662,3 +662,27 @@ class ThumbnailService:
         except Exception as e:
             return None, f"Unexpected error: {e}"
 
+
+# Singleton instance
+_thumbnail_service: Optional[ThumbnailService] = None
+
+
+def get_thumbnail_service(enabled: bool = True, use_cache: bool = True) -> ThumbnailService:
+    """
+    Get singleton ThumbnailService instance.
+    
+    Avoids creating multiple instances and redundant dependency checks.
+    
+    Args:
+        enabled: Whether thumbnail extraction is enabled
+        use_cache: Whether to use thumbnail cache
+        
+    Returns:
+        Shared ThumbnailService instance
+    """
+    global _thumbnail_service
+    
+    if _thumbnail_service is None:
+        _thumbnail_service = ThumbnailService(enabled=enabled, use_cache=use_cache)
+    
+    return _thumbnail_service

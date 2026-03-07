@@ -33,7 +33,7 @@ from .crypto import (
     hash_salt,
 )
 from .thumbnail import (
-    ThumbnailService,
+    get_thumbnail_service,
     MediaType,
     get_media_type,
 )
@@ -143,7 +143,7 @@ def encrypt_file(filename: str, f, salthash: bytes) -> Optional[str]:
         filesize = os.path.getsize(filename)
         
         # Extract thumbnail if supported
-        thumbnail_service = ThumbnailService(enabled=True)
+        thumbnail_service = get_thumbnail_service()
         thumbnail_result = thumbnail_service.extract(filename)
         
         # Determine flags

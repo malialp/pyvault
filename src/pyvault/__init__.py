@@ -44,6 +44,7 @@ from .crypto import (
 
 from .thumbnail import (
     ThumbnailService,
+    get_thumbnail_service,
     extract_thumbnail,
     is_thumbnail_supported,
     MediaType,
@@ -82,6 +83,7 @@ __all__ = [
     
     # Thumbnails
     "ThumbnailService",
+    "get_thumbnail_service",
     "extract_thumbnail",
     "is_thumbnail_supported",
     "MediaType",

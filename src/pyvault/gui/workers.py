@@ -258,9 +258,9 @@ class ThumbnailWorker(QThread):
     
     def _load_unencrypted_thumbnails(self):
         """Extract thumbnails from unencrypted files."""
-        from ..thumbnail import ThumbnailService, get_media_type, MediaType
+        from ..thumbnail import get_thumbnail_service, get_media_type, MediaType
         
-        thumbnail_service = ThumbnailService(enabled=True)
+        thumbnail_service = get_thumbnail_service()
         
         for filename in self._files:
             if self._cancelled:
