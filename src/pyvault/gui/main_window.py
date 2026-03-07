@@ -194,6 +194,15 @@ class MainWindow(QMainWindow):
         self._encrypted_files: List[str] = []
         self._unencrypted_files: List[str] = []
         
+        # Track which thumbnails have been loaded (for lazy loading)
+        self._loaded_enc_thumbnails: set = set()
+        self._loaded_unenc_thumbnails: set = set()
+        
+        # Pending thumbnail requests (debounce)
+        self._pending_enc_thumbnails: List[str] = []
+        self._pending_unenc_thumbnails: List[str] = []
+        self._thumbnail_load_timer: Optional[QTimer] = None
+        
         self._setup_crypto()
         self._setup_ui()
         self._connect_signals()
@@ -381,11 +390,25 @@ class MainWindow(QMainWindow):
         self._unencrypted_tab.get_file_grid().encrypt_requested.connect(
             lambda cards: self._process_files(cards, "encrypt")
         )
+        
+        # Lazy thumbnail loading - load thumbnails as user scrolls
+        self._encrypted_tab.get_file_grid().visible_range_changed.connect(
+            lambda start, end: self._on_visible_range_changed(start, end, is_encrypted=True)
+        )
+        self._unencrypted_tab.get_file_grid().visible_range_changed.connect(
+            lambda start, end: self._on_visible_range_changed(start, end, is_encrypted=False)
+        )
     
     def _load_files(self):
         """Load file lists."""
         # Cancel existing workers
         self._cancel_workers()
+        
+        # Clear loaded thumbnails tracking
+        self._loaded_enc_thumbnails.clear()
+        self._loaded_unenc_thumbnails.clear()
+        self._pending_enc_thumbnails.clear()
+        self._pending_unenc_thumbnails.clear()
         
         # Clear
         self._encrypted_tab.clear_files()
@@ -441,10 +464,11 @@ class MainWindow(QMainWindow):
         
         self._set_status(f"Loaded {len(results)} encrypted files")
         
-        # Load thumbnails for all encrypted files
-        enc_filenames = [item.enc_filename for item in results if item.has_thumbnail]
-        if enc_filenames:
-            self._load_thumbnails(enc_filenames, is_encrypted=True)
+        # Clear loaded thumbnails tracking (fresh load)
+        self._loaded_enc_thumbnails.clear()
+        
+        # Thumbnails will be loaded lazily via visible_range_changed signal
+        # No need to load all thumbnails upfront
         
         # Now load unencrypted
         self._load_unencrypted_list()
@@ -485,10 +509,11 @@ class MainWindow(QMainWindow):
         self._tab_widget.setTabText(0, f"Encrypted ({enc_count})")
         self._tab_widget.setTabText(1, f"Unencrypted ({unenc_count})")
         
-        # Load thumbnails for unencrypted files (images only)
-        unenc_filenames = [item.enc_filename for item in results if item.has_thumbnail]
-        if unenc_filenames:
-            self._load_thumbnails(unenc_filenames, is_encrypted=False)
+        # Clear loaded thumbnails tracking (fresh load)
+        self._loaded_unenc_thumbnails.clear()
+        
+        # Thumbnails will be loaded lazily via visible_range_changed signal
+        # No need to load all thumbnails upfront
         
         self._set_status(f"Ready - {enc_count + unenc_count} files")
     
@@ -551,10 +576,77 @@ class MainWindow(QMainWindow):
     
     def _on_thumbnail_loaded(self, enc_filename: str, data: bytes, is_encrypted: bool):
         """Handle thumbnail loaded."""
+        # Mark as loaded
         if is_encrypted:
+            self._loaded_enc_thumbnails.add(enc_filename)
             self._encrypted_tab.update_thumbnail(enc_filename, data)
         else:
+            self._loaded_unenc_thumbnails.add(enc_filename)
             self._unencrypted_tab.update_thumbnail(enc_filename, data)
+    
+    def _on_visible_range_changed(self, start: int, end: int, is_encrypted: bool):
+        """
+        Handle visible range change for lazy thumbnail loading.
+        
+        This is called when user scrolls and new items become visible.
+        We load thumbnails only for visible items that haven't been loaded yet.
+        """
+        if is_encrypted:
+            grid = self._encrypted_tab.get_file_grid()
+            loaded_set = self._loaded_enc_thumbnails
+        else:
+            grid = self._unencrypted_tab.get_file_grid()
+            loaded_set = self._loaded_unenc_thumbnails
+        
+        # Get visible items from the flow layout
+        flow = grid._flow
+        items = flow.get_items()
+        
+        # Find items that need thumbnails and haven't been loaded
+        files_to_load = []
+        for idx in range(start, min(end, len(items))):
+            item = items[idx]
+            if item.has_thumbnail and item.enc_filename not in loaded_set:
+                # Check if thumbnail data is already in the item
+                if item.thumbnail_data is None:
+                    files_to_load.append(item.enc_filename)
+                    # Mark as pending to avoid duplicate requests
+                    loaded_set.add(item.enc_filename)
+        
+        if files_to_load:
+            # Use debounce to avoid loading during fast scroll
+            self._queue_thumbnail_load(files_to_load, is_encrypted)
+    
+    def _queue_thumbnail_load(self, filenames: List[str], is_encrypted: bool):
+        """Queue thumbnail load with debounce."""
+        if is_encrypted:
+            self._pending_enc_thumbnails.extend(filenames)
+        else:
+            self._pending_unenc_thumbnails.extend(filenames)
+        
+        # Cancel existing timer
+        if self._thumbnail_load_timer:
+            self._thumbnail_load_timer.stop()
+        
+        # Start new timer (50ms debounce)
+        self._thumbnail_load_timer = QTimer()
+        self._thumbnail_load_timer.setSingleShot(True)
+        self._thumbnail_load_timer.timeout.connect(self._process_pending_thumbnails)
+        self._thumbnail_load_timer.start(50)
+    
+    def _process_pending_thumbnails(self):
+        """Process pending thumbnail requests."""
+        # Load encrypted thumbnails
+        if self._pending_enc_thumbnails:
+            files = self._pending_enc_thumbnails.copy()
+            self._pending_enc_thumbnails.clear()
+            self._load_thumbnails(files, is_encrypted=True)
+        
+        # Load unencrypted thumbnails
+        if self._pending_unenc_thumbnails:
+            files = self._pending_unenc_thumbnails.copy()
+            self._pending_unenc_thumbnails.clear()
+            self._load_thumbnails(files, is_encrypted=False)
     
     def _on_action(self, operation: str):
         """Handle toolbar action."""
@@ -657,6 +749,10 @@ class MainWindow(QMainWindow):
             # Remove from encrypted tab, add to unencrypted tab
             files_to_remove = [f for f in successful if f in card_map]
             self._encrypted_tab.remove_files(files_to_remove)
+            
+            # Remove from loaded thumbnails tracking
+            for f in files_to_remove:
+                self._loaded_enc_thumbnails.discard(f)
             
             # Create FileItems for the newly decrypted files
             new_items = []
