@@ -439,18 +439,25 @@ class MainWindow(QMainWindow):
     
     def _load_encrypted_list(self):
         """Load encrypted file names."""
-        self._list_worker = FileListWorker()
-        self._list_worker.setup(
+        worker = FileListWorker()
+        worker.setup(
             files=self._encrypted_files,
             fernet=self._fernet,
             salt_hash=self._salt_hash,
             mode="encrypted"
         )
         
-        self._list_worker.progress.connect(self._on_enc_progress)
-        self._list_worker.finished_loading.connect(self._on_enc_finished)
+        worker.progress.connect(self._on_enc_progress)
+        worker.finished_loading.connect(self._on_enc_finished)
         
-        self._list_worker.start()
+        # Clean up reference when finished
+        def on_finished():
+            self._list_worker = None
+            worker.deleteLater()
+        worker.finished.connect(on_finished)
+        
+        self._list_worker = worker
+        worker.start()
     
     def _on_enc_progress(self, current: int, total: int):
         """Handle encrypted loading progress."""
@@ -481,18 +488,25 @@ class MainWindow(QMainWindow):
         
         self._unencrypted_tab.set_loading(True, 0, len(self._unencrypted_files))
         
-        self._list_worker = FileListWorker()
-        self._list_worker.setup(
+        worker = FileListWorker()
+        worker.setup(
             files=self._unencrypted_files,
             fernet=None,
             salt_hash=b"",
             mode="unencrypted"
         )
         
-        self._list_worker.progress.connect(self._on_unenc_progress)
-        self._list_worker.finished_loading.connect(self._on_unenc_finished)
+        worker.progress.connect(self._on_unenc_progress)
+        worker.finished_loading.connect(self._on_unenc_finished)
         
-        self._list_worker.start()
+        # Clean up reference when finished
+        def on_finished():
+            self._list_worker = None
+            worker.deleteLater()
+        worker.finished.connect(on_finished)
+        
+        self._list_worker = worker
+        worker.start()
     
     def _on_unenc_progress(self, current: int, total: int):
         """Handle unencrypted loading progress."""
@@ -525,15 +539,21 @@ class MainWindow(QMainWindow):
         # Use separate workers for encrypted and unencrypted to prevent
         # one from cancelling the other (fixes thumbnail disappearing issue)
         if is_encrypted:
-            # Cancel only the encrypted thumbnail worker
-            if self._enc_thumbnail_worker and self._enc_thumbnail_worker.isRunning():
-                self._enc_thumbnail_worker.cancel()
-                self._enc_thumbnail_worker.wait(500)
+            # Cancel old encrypted thumbnail worker if running
+            if self._enc_thumbnail_worker is not None:
+                if self._enc_thumbnail_worker.isRunning():
+                    self._enc_thumbnail_worker.cancel()
+                    self._enc_thumbnail_worker.wait(500)
+                # Note: deleteLater is called via finished signal
+                self._enc_thumbnail_worker = None
         else:
-            # Cancel only the unencrypted thumbnail worker
-            if self._unenc_thumbnail_worker and self._unenc_thumbnail_worker.isRunning():
-                self._unenc_thumbnail_worker.cancel()
-                self._unenc_thumbnail_worker.wait(500)
+            # Cancel old unencrypted thumbnail worker if running
+            if self._unenc_thumbnail_worker is not None:
+                if self._unenc_thumbnail_worker.isRunning():
+                    self._unenc_thumbnail_worker.cancel()
+                    self._unenc_thumbnail_worker.wait(500)
+                # Note: deleteLater is called via finished signal
+                self._unenc_thumbnail_worker = None
         
         # Filter to files that need thumbnails
         # For encrypted: check if has_thumbnail flag
@@ -565,6 +585,16 @@ class MainWindow(QMainWindow):
         worker.thumbnail_loaded.connect(
             lambda f, d: self._on_thumbnail_loaded(f, d, is_encrypted)
         )
+        
+        # Clean up worker reference and delete when finished
+        def on_worker_finished():
+            if is_encrypted:
+                self._enc_thumbnail_worker = None
+            else:
+                self._unenc_thumbnail_worker = None
+            worker.deleteLater()
+        
+        worker.finished.connect(on_worker_finished)
         
         # Store reference to appropriate worker
         if is_encrypted:
@@ -690,7 +720,7 @@ class MainWindow(QMainWindow):
         progress.setWindowTitle(action_name)
         progress.setStyleSheet(get_stylesheet())
         
-        self._operation_worker = OperationWorker(
+        worker = OperationWorker(
             files, self._fernet, self._salt_hash, operation
         )
         
@@ -700,6 +730,10 @@ class MainWindow(QMainWindow):
         
         def on_finished(successful, failed):
             progress.close()
+            
+            # Clean up reference
+            self._operation_worker = None
+            worker.deleteLater()
             
             past_tense = "decrypted" if operation == "decrypt" else "encrypted"
             
@@ -723,11 +757,12 @@ class MainWindow(QMainWindow):
             if successful:
                 self._update_after_operation(cards, successful, operation)
         
-        self._operation_worker.progress.connect(on_progress)
-        self._operation_worker.finished.connect(on_finished)
-        progress.canceled.connect(self._operation_worker.cancel)
+        worker.progress.connect(on_progress)
+        worker.finished.connect(on_finished)
+        progress.canceled.connect(worker.cancel)
         
-        self._operation_worker.start()
+        self._operation_worker = worker
+        worker.start()
     
     def _update_after_operation(self, cards: list, successful: list, operation: str):
         """
@@ -805,18 +840,27 @@ class MainWindow(QMainWindow):
         self._set_status(f"Ready - {enc_count + unenc_count} files")
     
     def _cancel_workers(self):
-        """Cancel all running workers."""
-        if self._list_worker and self._list_worker.isRunning():
-            self._list_worker.cancel()
-            self._list_worker.wait(500)
+        """Cancel all running workers and clean up."""
+        if self._list_worker is not None:
+            if self._list_worker.isRunning():
+                self._list_worker.cancel()
+                self._list_worker.wait(500)
+            self._list_worker.deleteLater()
+            self._list_worker = None
         
-        if self._enc_thumbnail_worker and self._enc_thumbnail_worker.isRunning():
-            self._enc_thumbnail_worker.cancel()
-            self._enc_thumbnail_worker.wait(500)
+        if self._enc_thumbnail_worker is not None:
+            if self._enc_thumbnail_worker.isRunning():
+                self._enc_thumbnail_worker.cancel()
+                self._enc_thumbnail_worker.wait(500)
+            self._enc_thumbnail_worker.deleteLater()
+            self._enc_thumbnail_worker = None
         
-        if self._unenc_thumbnail_worker and self._unenc_thumbnail_worker.isRunning():
-            self._unenc_thumbnail_worker.cancel()
-            self._unenc_thumbnail_worker.wait(500)
+        if self._unenc_thumbnail_worker is not None:
+            if self._unenc_thumbnail_worker.isRunning():
+                self._unenc_thumbnail_worker.cancel()
+                self._unenc_thumbnail_worker.wait(500)
+            self._unenc_thumbnail_worker.deleteLater()
+            self._unenc_thumbnail_worker = None
     
     def _set_status(self, message: str):
         """Set status message."""
@@ -827,8 +871,11 @@ class MainWindow(QMainWindow):
         """Handle close."""
         self._cancel_workers()
         
-        if self._operation_worker and self._operation_worker.isRunning():
-            self._operation_worker.cancel()
-            self._operation_worker.wait(1000)
+        if self._operation_worker is not None:
+            if self._operation_worker.isRunning():
+                self._operation_worker.cancel()
+                self._operation_worker.wait(1000)
+            self._operation_worker.deleteLater()
+            self._operation_worker = None
         
         event.accept()
