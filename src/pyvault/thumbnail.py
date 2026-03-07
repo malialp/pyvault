@@ -251,13 +251,14 @@ def _extract_video_thumbnail(file_path: str) -> ThumbnailResult:
         # -vf scale with aspect ratio preservation
         max_w, max_h = THUMBNAIL_MAX_SIZE
         
+        # q:v 10 ≈ JPEG quality 65 (matches THUMBNAIL_JPEG_QUALITY)
         cmd = [
             'ffmpeg',
             '-ss', '1',  # Seek to 1 second
             '-i', file_path,
             '-vframes', '1',  # Extract 1 frame
             '-vf', f'scale=w={max_w}:h={max_h}:force_original_aspect_ratio=decrease',
-            '-q:v', '5',  # JPEG quality (2-31, lower is better)
+            '-q:v', '10',  # JPEG quality ~65
             '-y',  # Overwrite output
             tmp_path
         ]
@@ -284,19 +285,20 @@ def _extract_video_thumbnail(file_path: str) -> ThumbnailResult:
         if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
             raise ExtractionError("ffmpeg produced no output")
         
-        # Read thumbnail and get dimensions
-        with Image.open(tmp_path) as img:
-            # Re-save with our quality settings for consistency
-            output = io.BytesIO()
-            img.save(output, format=THUMBNAIL_FORMAT, quality=THUMBNAIL_JPEG_QUALITY, optimize=True)
-            thumbnail_data = output.getvalue()
-            
-            return ThumbnailResult(
-                data=thumbnail_data,
-                width=img.width,
-                height=img.height,
-                media_type=MediaType.VIDEO
-            )
+        # Read JPEG directly - no re-encoding needed
+        with open(tmp_path, 'rb') as f:
+            thumbnail_data = f.read()
+        
+        # Get dimensions from the JPEG (PIL only for reading, no encoding)
+        with Image.open(io.BytesIO(thumbnail_data)) as img:
+            width, height = img.size
+        
+        return ThumbnailResult(
+            data=thumbnail_data,
+            width=width,
+            height=height,
+            media_type=MediaType.VIDEO
+        )
             
     except subprocess.TimeoutExpired:
         raise ExtractionError("ffmpeg timed out while extracting video thumbnail")
