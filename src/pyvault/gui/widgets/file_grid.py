@@ -70,6 +70,9 @@ class VirtualizedFlowLayout(QWidget):
         self._layout_pending = False
         self._total_height = 0
         
+        # Resize debounce timer
+        self._resize_timer: Optional[QTimer] = None
+        
         # Callbacks for card events
         self._on_card_clicked_callback = None
         self._on_card_double_clicked_callback = None
@@ -369,9 +372,17 @@ class VirtualizedFlowLayout(QWidget):
         return self._last_clicked_index
     
     def resizeEvent(self, event):
-        """Handle resize."""
+        """Handle resize with debounce."""
         super().resizeEvent(event)
-        self._schedule_layout()
+        
+        # Debounce resize - wait 50ms after last resize before layout
+        if self._resize_timer is not None:
+            self._resize_timer.stop()
+        
+        self._resize_timer = QTimer()
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.timeout.connect(self._schedule_layout)
+        self._resize_timer.start(50)
 
 
 class FileGrid(QScrollArea):
