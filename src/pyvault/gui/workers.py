@@ -23,7 +23,28 @@ class FileItem:
     error: Optional[str] = None
 
 
-class FileListWorker(QThread):
+class BaseWorker(QThread):
+    """
+    Base class for all background workers.
+    
+    Provides common cancel functionality.
+    """
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cancelled = False
+    
+    def cancel(self):
+        """Cancel the operation."""
+        self._cancelled = True
+    
+    @property
+    def is_cancelled(self) -> bool:
+        """Check if operation was cancelled."""
+        return self._cancelled
+
+
+class FileListWorker(BaseWorker):
     """
     Fast worker that only loads file names.
     No thumbnail extraction - that's done separately on-demand.
@@ -41,7 +62,6 @@ class FileListWorker(QThread):
         self._fernet = None
         self._salt_hash: bytes = b""
         self._mode = "encrypted"
-        self._cancelled = False
     
     def setup(
         self,
@@ -56,10 +76,6 @@ class FileListWorker(QThread):
         self._salt_hash = salt_hash
         self._mode = mode
         self._cancelled = False
-    
-    def cancel(self):
-        """Cancel the operation."""
-        self._cancelled = True
     
     def run(self):
         """Load file names only (no thumbnails)."""
@@ -160,7 +176,7 @@ class FileListWorker(QThread):
         self.finished_loading.emit(results)
 
 
-class ThumbnailWorker(QThread):
+class ThumbnailWorker(BaseWorker):
     """
     Worker that loads thumbnails for a specific set of files.
     Used for loading visible page thumbnails only.
@@ -181,7 +197,6 @@ class ThumbnailWorker(QThread):
         self._fernet = None
         self._salt_hash: bytes = b""
         self._is_encrypted: bool = True
-        self._cancelled = False
     
     def setup(
         self,
@@ -207,10 +222,6 @@ class ThumbnailWorker(QThread):
         self._salt_hash = salt_hash
         self._is_encrypted = is_encrypted
         self._cancelled = False
-    
-    def cancel(self):
-        """Cancel the operation."""
-        self._cancelled = True
     
     def run(self):
         """Load thumbnails for the given files."""
@@ -285,7 +296,7 @@ class ThumbnailWorker(QThread):
                 continue
 
 
-class OperationWorker(QThread):
+class OperationWorker(BaseWorker):
     """
     Background worker for encrypt/decrypt operations.
     """
@@ -299,11 +310,6 @@ class OperationWorker(QThread):
         self._fernet = fernet
         self._salt_hash = salt_hash
         self._operation = operation
-        self._cancelled = False
-    
-    def cancel(self):
-        """Cancel the operation."""
-        self._cancelled = True
     
     def run(self):
         """Run operation in background."""

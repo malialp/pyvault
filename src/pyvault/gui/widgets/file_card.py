@@ -26,13 +26,22 @@ class ThumbnailLabel(QLabel):
         self._pixmap: Optional[QPixmap] = None
         self._extension: str = ""
         self._has_thumbnail: bool = False
+        self._scale: float = 1.0
+        self._base_size = Theme.THUMBNAIL_SIZE
         
-        self.setFixedSize(Theme.THUMBNAIL_SIZE, Theme.THUMBNAIL_SIZE)
+        self.setFixedSize(self._base_size, self._base_size)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(f"""
             background-color: {Theme.colors.bg_tertiary};
             border-radius: {Theme.radius.md}px;
         """)
+    
+    def update_scale(self, scale: float):
+        """Update the scale factor."""
+        self._scale = scale
+        size = int(self._base_size * scale)
+        self.setFixedSize(size, size)
+        self._update_display()
     
     def set_thumbnail(self, data: bytes):
         """Set thumbnail from raw bytes."""
@@ -313,3 +322,22 @@ class FileCard(QFrame):
         self._selected = False
         self._hover = False
         self._update_style()
+    
+    def update_scale(self, scale: float):
+        """
+        Update card scale for zoom functionality.
+        
+        Args:
+            scale: Scale factor (0.5 to 1.5)
+        """
+        # Update thumbnail size
+        self.thumbnail_label.update_scale(scale)
+        
+        # Update font size
+        base_font_size = Theme.typography.size_sm
+        scaled_font_size = int(base_font_size * scale)
+        self.filename_label.setStyleSheet(f"""
+            font-size: {scaled_font_size}px;
+            color: {Theme.colors.text_primary};
+            background: transparent;
+        """)

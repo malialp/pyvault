@@ -7,7 +7,7 @@ The main application window for PyVault GUI.
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QFrame, QMessageBox, QProgressDialog,
-    QApplication, QTabWidget, QProgressBar
+    QApplication, QTabWidget, QProgressBar, QSlider
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QCloseEvent
@@ -352,6 +352,53 @@ class MainWindow(QMainWindow):
         
         layout.addStretch()
         
+        # Zoom slider
+        zoom_label = QLabel("🔍")
+        zoom_label.setStyleSheet(f"""
+            color: {Theme.colors.text_muted};
+            font-size: {Theme.typography.size_sm}px;
+            background: transparent;
+        """)
+        layout.addWidget(zoom_label)
+        
+        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self._zoom_slider.setMinimum(int(Theme.MIN_CARD_SCALE * 100))
+        self._zoom_slider.setMaximum(int(Theme.MAX_CARD_SCALE * 100))
+        self._zoom_slider.setValue(int(Theme.DEFAULT_CARD_SCALE * 100))
+        self._zoom_slider.setFixedWidth(100)
+        self._zoom_slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{
+                height: 4px;
+                background: {Theme.colors.bg_tertiary};
+                border-radius: 2px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {Theme.colors.accent_primary};
+                width: 12px;
+                height: 12px;
+                margin: -4px 0;
+                border-radius: 6px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: {Theme.colors.accent_purple};
+            }}
+        """)
+        layout.addWidget(self._zoom_slider)
+        
+        self._zoom_value_label = QLabel("100%")
+        self._zoom_value_label.setFixedWidth(40)
+        self._zoom_value_label.setStyleSheet(f"""
+            color: {Theme.colors.text_muted};
+            font-size: {Theme.typography.size_xs}px;
+            background: transparent;
+        """)
+        layout.addWidget(self._zoom_value_label)
+        
+        # Spacer
+        spacer = QLabel(" ")
+        spacer.setFixedWidth(Theme.spacing.lg)
+        layout.addWidget(spacer)
+        
         from ..settings import APP_VERSION
         version_label = QLabel(f"v{APP_VERSION}")
         version_label.setStyleSheet(f"""
@@ -398,6 +445,32 @@ class MainWindow(QMainWindow):
         self._unencrypted_tab.get_file_grid().visible_range_changed.connect(
             lambda start, end: self._on_visible_range_changed(start, end, is_encrypted=False)
         )
+        
+        # Zoom slider
+        self._zoom_slider.valueChanged.connect(self._on_zoom_slider_changed)
+        
+        # Sync zoom from grid (Ctrl+wheel)
+        self._encrypted_tab.get_file_grid().scale_changed.connect(self._on_grid_scale_changed)
+        self._unencrypted_tab.get_file_grid().scale_changed.connect(self._on_grid_scale_changed)
+    
+    def _on_zoom_slider_changed(self, value: int):
+        """Handle zoom slider value change."""
+        scale = value / 100.0
+        self._encrypted_tab.get_file_grid().set_scale(scale)
+        self._unencrypted_tab.get_file_grid().set_scale(scale)
+        self._zoom_value_label.setText(f"{value}%")
+    
+    def _on_grid_scale_changed(self, scale: float):
+        """Handle scale change from grid (Ctrl+wheel)."""
+        value = int(scale * 100)
+        self._zoom_slider.blockSignals(True)
+        self._zoom_slider.setValue(value)
+        self._zoom_slider.blockSignals(False)
+        self._zoom_value_label.setText(f"{value}%")
+        
+        # Sync to other grid
+        self._encrypted_tab.get_file_grid().set_scale(scale)
+        self._unencrypted_tab.get_file_grid().set_scale(scale)
     
     def _load_files(self):
         """Load file lists."""

@@ -47,8 +47,11 @@ class VirtualizedFlowLayout(QWidget):
         super().__init__(parent)
         
         self._spacing = Theme.spacing.md
-        self._item_width = Theme.CARD_WIDTH
-        self._item_height = Theme.CARD_HEIGHT
+        self._base_item_width = Theme.CARD_WIDTH
+        self._base_item_height = Theme.CARD_HEIGHT
+        self._scale = Theme.DEFAULT_CARD_SCALE
+        self._item_width = int(self._base_item_width * self._scale)
+        self._item_height = int(self._base_item_height * self._scale)
         
         # Data - list of FileInfo (not widgets)
         self._items: List[FileInfo] = []
@@ -61,6 +64,7 @@ class VirtualizedFlowLayout(QWidget):
         self._viewport_top = 0
         self._viewport_height = 600
         self._cols = 1
+        self._left_margin = 0  # For centering
         
         # Selection state (by index, not by widget)
         self._selected_indices: Set[int] = set()
@@ -83,6 +87,30 @@ class VirtualizedFlowLayout(QWidget):
         self._on_card_clicked_callback = clicked
         self._on_card_double_clicked_callback = double_clicked
         self._on_context_menu_callback = context_menu
+    
+    def set_scale(self, scale: float):
+        """Set the scale factor for items."""
+        scale = max(Theme.MIN_CARD_SCALE, min(Theme.MAX_CARD_SCALE, scale))
+        if scale != self._scale:
+            self._scale = scale
+            self._item_width = int(self._base_item_width * scale)
+            self._item_height = int(self._base_item_height * scale)
+            
+            # Update active card sizes
+            for card in self._active_cards.values():
+                card.setFixedSize(self._item_width, self._item_height)
+                card.update_scale(scale)
+            
+            # Also update pooled cards
+            for card in self._card_pool:
+                card.setFixedSize(self._item_width, self._item_height)
+                card.update_scale(scale)
+            
+            self._schedule_layout()
+    
+    def get_scale(self) -> float:
+        """Get current scale factor."""
+        return self._scale
     
     def set_items(self, items: List[FileInfo]):
         """Set the items to display."""
@@ -198,11 +226,16 @@ class VirtualizedFlowLayout(QWidget):
         """Calculate total height based on items."""
         if not self._items:
             self._total_height = 0
+            self._left_margin = 0
             self.setMinimumHeight(0)
             return
         
         width = max(self.width(), 200)
         self._cols = max(1, (width + self._spacing) // (self._item_width + self._spacing))
+        
+        # Calculate left margin for centering
+        used_width = self._cols * (self._item_width + self._spacing) - self._spacing
+        self._left_margin = max(0, (width - used_width) // 2)
         
         rows = (len(self._items) + self._cols - 1) // self._cols
         self._total_height = rows * (self._item_height + self._spacing)
@@ -279,6 +312,10 @@ class VirtualizedFlowLayout(QWidget):
             card.double_clicked.connect(self._on_card_double_clicked)
             card.context_menu_requested.connect(self._on_context_menu)
         
+        # Apply current scale
+        card.setFixedSize(self._item_width, self._item_height)
+        card.update_scale(self._scale)
+        
         return card
     
     def _setup_card(self, card: FileCard, idx: int):
@@ -296,11 +333,11 @@ class VirtualizedFlowLayout(QWidget):
         card.setProperty("item_index", idx)
     
     def _position_cards(self):
-        """Position all active cards."""
+        """Position all active cards (centered)."""
         for idx, card in self._active_cards.items():
             row = idx // self._cols
             col = idx % self._cols
-            x = col * (self._item_width + self._spacing)
+            x = self._left_margin + col * (self._item_width + self._spacing)
             y = row * (self._item_height + self._spacing)
             card.move(x, y)
             card.show()
@@ -394,6 +431,7 @@ class FileGrid(QScrollArea):
     - Responsive grid layout
     - Single and multi-selection
     - Context menu support
+    - Zoom with Ctrl+wheel
     """
     
     selection_changed = pyqtSignal(list)  # List of selected indices
@@ -401,6 +439,7 @@ class FileGrid(QScrollArea):
     decrypt_requested = pyqtSignal(list)  # List of FileInfo
     encrypt_requested = pyqtSignal(list)  # List of FileInfo
     visible_range_changed = pyqtSignal(int, int)  # For lazy thumbnail loading
+    scale_changed = pyqtSignal(float)  # For zoom slider sync
     
     def __init__(self, mode: str = "encrypted", parent=None):
         super().__init__(parent)
@@ -689,3 +728,37 @@ class FileGrid(QScrollArea):
         """Handle resize."""
         super().resizeEvent(event)
         QTimer.singleShot(0, self._update_viewport)
+    
+    def set_scale(self, scale: float):
+        """Set the scale factor for items."""
+        self._flow.set_scale(scale)
+    
+    def get_scale(self) -> float:
+        """Get current scale factor."""
+        return self._flow.get_scale()
+    
+    def wheelEvent(self, event):
+        """Handle wheel event - Ctrl+wheel for zoom."""
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QWheelEvent
+        
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            # Zoom with Ctrl+wheel
+            delta = event.angleDelta().y()
+            current_scale = self._flow.get_scale()
+            
+            if delta > 0:
+                new_scale = current_scale + Theme.ZOOM_STEP
+            else:
+                new_scale = current_scale - Theme.ZOOM_STEP
+            
+            new_scale = max(Theme.MIN_CARD_SCALE, min(Theme.MAX_CARD_SCALE, new_scale))
+            
+            if new_scale != current_scale:
+                self._flow.set_scale(new_scale)
+                self.scale_changed.emit(new_scale)
+            
+            event.accept()
+        else:
+            # Normal scroll
+            super().wheelEvent(event)

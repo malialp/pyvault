@@ -89,10 +89,16 @@ class Theme:
     typography = Typography()
     radius = BorderRadius()
     
-    # Thumbnail sizes
+    # Thumbnail sizes (base values at scale 1.0)
     THUMBNAIL_SIZE = 160
     CARD_WIDTH = 180
     CARD_HEIGHT = 200
+    
+    # Zoom settings
+    MIN_CARD_SCALE = 0.5
+    MAX_CARD_SCALE = 1.5
+    DEFAULT_CARD_SCALE = 1.0
+    ZOOM_STEP = 0.1
 
 
 def get_stylesheet() -> str:
