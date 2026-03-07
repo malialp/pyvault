@@ -1,6 +1,6 @@
 [project]
 name = "pyvault"
-version = "0.3.1"
+version = "0.4.0"
 description = "File encryption app"
 readme = "README.md"
 requires-python = ">=3.11"
