@@ -583,6 +583,11 @@ def get_file_info(enc_file_path: str) -> Optional[dict]:
     """
     try:
         with open(enc_file_path, 'rb') as f:
+            # Get file size from file handle (avoids extra stat syscall)
+            f.seek(0, 2)
+            file_size = f.tell()
+            f.seek(0)
+            
             reader = ContainerReader(f)
             is_new = reader.detect_format()
             
@@ -591,7 +596,7 @@ def get_file_info(enc_file_path: str) -> Optional[dict]:
                     "format_version": ContainerVersion.LEGACY,
                     "has_thumbnail": False,
                     "is_image": False,
-                    "file_size": os.path.getsize(enc_file_path)
+                    "file_size": file_size
                 }
             
             header = reader.read_header()
@@ -602,7 +607,7 @@ def get_file_info(enc_file_path: str) -> Optional[dict]:
                 "is_image": header.is_image,
                 "thumbnail_size": header.thumbnail_size,
                 "data_size": header.data_size,
-                "file_size": os.path.getsize(enc_file_path)
+                "file_size": file_size
             }
             
     except Exception:
