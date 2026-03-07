@@ -48,6 +48,14 @@ class ThumbnailLabel(QLabel):
         if not self._has_thumbnail:
             self._update_display()
     
+    def reset(self):
+        """Reset thumbnail to placeholder state."""
+        self._pixmap = None
+        self._has_thumbnail = False
+        self._extension = ""
+        self.clear()
+        self.update()
+    
     def _update_display(self):
         """Update the displayed content."""
         if self._has_thumbnail and self._pixmap:
@@ -265,3 +273,43 @@ class FileCard(QFrame):
     def get_thumbnail_data(self) -> Optional[bytes]:
         """Get the raw thumbnail data."""
         return self._thumbnail_data
+    
+    def update_data(
+        self,
+        enc_filename: str,
+        original_filename: str,
+        thumbnail_data: Optional[bytes] = None,
+        has_thumbnail: bool = False,
+        is_image: bool = False,
+        is_encrypted: bool = True
+    ):
+        """
+        Update card data for reuse in virtualized list.
+        
+        This allows the card widget to be reused with different file data
+        instead of creating a new widget each time.
+        """
+        self.enc_filename = enc_filename
+        self.original_filename = original_filename
+        self.has_thumbnail = has_thumbnail
+        self.is_image = is_image
+        self.is_encrypted = is_encrypted
+        self._thumbnail_data = thumbnail_data
+        
+        # Reset and update thumbnail
+        self.thumbnail_label.reset()
+        if thumbnail_data:
+            self.thumbnail_label.set_thumbnail(thumbnail_data)
+        
+        # Update extension
+        ext = os.path.splitext(original_filename)[1]
+        self.thumbnail_label.set_extension(ext)
+        
+        # Update filename label
+        self.filename_label.setText(self._truncate_filename(original_filename))
+        self.filename_label.setToolTip(original_filename)
+        
+        # Reset selection state
+        self._selected = False
+        self._hover = False
+        self._update_style()
