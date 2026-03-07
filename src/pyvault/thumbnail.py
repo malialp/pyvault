@@ -432,6 +432,106 @@ def extract_thumbnail_from_bytes(data: bytes, filename: str) -> Optional[Thumbna
     return _extract_thumbnail_from_bytes(data, media_type)
 
 
+class ThumbnailCache:
+    """
+    Simple LRU cache for thumbnails.
+    
+    Uses file path + mtime as cache key to invalidate when file changes.
+    """
+    
+    def __init__(self, max_size: int = 500):
+        """
+        Initialize cache.
+        
+        Args:
+            max_size: Maximum number of thumbnails to cache
+        """
+        self._cache: dict[str, tuple[float, bytes]] = {}  # key -> (mtime, data)
+        self._access_order: list[str] = []  # LRU tracking
+        self._max_size = max_size
+    
+    def _make_key(self, file_path: str) -> str:
+        """Create cache key from file path."""
+        return os.path.abspath(file_path)
+    
+    def get(self, file_path: str) -> Optional[bytes]:
+        """
+        Get cached thumbnail if valid.
+        
+        Args:
+            file_path: Path to the source file
+            
+        Returns:
+            Cached thumbnail bytes or None if not cached/invalid
+        """
+        key = self._make_key(file_path)
+        
+        if key not in self._cache:
+            return None
+        
+        cached_mtime, data = self._cache[key]
+        
+        # Check if file has been modified
+        try:
+            current_mtime = os.path.getmtime(file_path)
+            if current_mtime != cached_mtime:
+                # File changed, invalidate cache
+                del self._cache[key]
+                if key in self._access_order:
+                    self._access_order.remove(key)
+                return None
+        except OSError:
+            # File doesn't exist or can't be accessed
+            return None
+        
+        # Update access order for LRU
+        if key in self._access_order:
+            self._access_order.remove(key)
+        self._access_order.append(key)
+        
+        return data
+    
+    def put(self, file_path: str, data: bytes) -> None:
+        """
+        Cache a thumbnail.
+        
+        Args:
+            file_path: Path to the source file
+            data: Thumbnail bytes to cache
+        """
+        key = self._make_key(file_path)
+        
+        try:
+            mtime = os.path.getmtime(file_path)
+        except OSError:
+            return  # Can't cache if we can't get mtime
+        
+        # Evict oldest entries if at capacity
+        while len(self._cache) >= self._max_size and self._access_order:
+            oldest_key = self._access_order.pop(0)
+            if oldest_key in self._cache:
+                del self._cache[oldest_key]
+        
+        self._cache[key] = (mtime, data)
+        
+        if key in self._access_order:
+            self._access_order.remove(key)
+        self._access_order.append(key)
+    
+    def clear(self) -> None:
+        """Clear all cached thumbnails."""
+        self._cache.clear()
+        self._access_order.clear()
+    
+    def size(self) -> int:
+        """Get number of cached thumbnails."""
+        return len(self._cache)
+
+
+# Global thumbnail cache (shared across ThumbnailService instances)
+_thumbnail_cache = ThumbnailCache(max_size=500)
+
+
 class ThumbnailService:
     """
     Service class for thumbnail operations.
@@ -440,14 +540,16 @@ class ThumbnailService:
     with caching and error handling capabilities.
     """
     
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, use_cache: bool = True):
         """
         Initialize thumbnail service.
         
         Args:
             enabled: Whether thumbnail extraction is enabled
+            use_cache: Whether to use thumbnail cache
         """
         self._enabled = enabled
+        self._use_cache = use_cache
         self._check_dependencies()
     
     def _check_dependencies(self) -> dict[str, bool]:
@@ -489,6 +591,8 @@ class ThumbnailService:
         """
         Extract thumbnail from a file.
         
+        Uses cache to avoid re-extracting thumbnails for unchanged files.
+        
         Args:
             file_path: Path to the source file
             
@@ -509,8 +613,26 @@ class ThumbnailService:
         if media_type == MediaType.VIDEO and not self.can_process_videos:
             return None
         
+        # Check cache first
+        if self._use_cache:
+            cached_data = _thumbnail_cache.get(file_path)
+            if cached_data is not None:
+                # Return cached result (we don't store full ThumbnailResult, just bytes)
+                return ThumbnailResult(
+                    data=cached_data,
+                    width=0,  # Unknown from cache
+                    height=0,
+                    media_type=media_type
+                )
+        
         try:
-            return extract_thumbnail(file_path)
+            result = extract_thumbnail(file_path)
+            
+            # Cache the result
+            if result is not None and self._use_cache:
+                _thumbnail_cache.put(file_path, result.data)
+            
+            return result
         except (DependencyError, ExtractionError):
             # Silently fail - thumbnails are optional
             return None
