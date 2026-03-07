@@ -87,10 +87,14 @@ class ThumbnailLabel(QLabel):
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             
+            # Scale font sizes
+            ext_font_size = max(12, int(24 * self._scale))
+            icon_font_size = max(18, int(36 * self._scale))
+            
             # Draw extension text
             if self._extension:
                 font = QFont(Theme.typography.font_family)
-                font.setPixelSize(24)
+                font.setPixelSize(ext_font_size)
                 font.setBold(True)
                 painter.setFont(font)
                 painter.setPen(QColor(Theme.colors.text_muted))
@@ -102,7 +106,7 @@ class ThumbnailLabel(QLabel):
             else:
                 # Draw file icon placeholder
                 font = QFont()
-                font.setPixelSize(36)
+                font.setPixelSize(icon_font_size)
                 painter.setFont(font)
                 painter.setPen(QColor(Theme.colors.text_muted))
                 painter.drawText(
@@ -333,9 +337,24 @@ class FileCard(QFrame):
         # Update thumbnail size
         self.thumbnail_label.update_scale(scale)
         
-        # Update font size
+        # Update layout margins and spacing
+        base_margin = 10
+        base_spacing = 8
+        scaled_margin = int(base_margin * scale)
+        scaled_spacing = int(base_spacing * scale)
+        
+        layout = self.layout()
+        if layout:
+            layout.setContentsMargins(scaled_margin, scaled_margin, scaled_margin, scaled_margin)
+            layout.setSpacing(scaled_spacing)
+        
+        # Update font size and max height for filename
         base_font_size = Theme.typography.size_sm
-        scaled_font_size = int(base_font_size * scale)
+        scaled_font_size = max(8, int(base_font_size * scale))  # Min 8px
+        base_max_height = 36
+        scaled_max_height = int(base_max_height * scale)
+        
+        self.filename_label.setMaximumHeight(scaled_max_height)
         self.filename_label.setStyleSheet(f"""
             font-size: {scaled_font_size}px;
             color: {Theme.colors.text_primary};
