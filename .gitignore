@@ -12,3 +12,5 @@ wheels/
 tests/
 vault/
 *.todo
+
+.cursor/
